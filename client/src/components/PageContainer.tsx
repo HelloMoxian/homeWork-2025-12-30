@@ -1,0 +1,51 @@
+import React from 'react'
+import { cn } from '@/lib/utils'
+
+interface PageContainerProps {
+    title: string
+    subtitle?: string
+    icon: React.ReactNode
+    iconColor: string
+    iconBgColor: string
+    children?: React.ReactNode
+}
+
+export default function PageContainer({
+    title,
+    subtitle,
+    icon,
+    iconColor,
+    iconBgColor,
+    children
+}: PageContainerProps) {
+    return (
+        <div className="max-w-6xl mx-auto">
+            {/* 页面标题区 */}
+            <div className="mb-8 flex items-center gap-5">
+                <div className={cn(
+                    'w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg',
+                    iconBgColor
+                )}>
+                    <span className={iconColor}>{icon}</span>
+                </div>
+                <div>
+                    <h1 className="text-4xl font-bold text-gray-800">{title}</h1>
+                    {subtitle && (
+                        <p className="text-xl text-gray-500 mt-1">{subtitle}</p>
+                    )}
+                </div>
+            </div>
+
+            {/* 页面内容区 */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-soft p-8 min-h-[400px]">
+                {children || (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                        <div className="text-6xl mb-4">🚧</div>
+                        <p className="text-2xl">功能正在建设中...</p>
+                        <p className="text-lg mt-2">敬请期待！</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}

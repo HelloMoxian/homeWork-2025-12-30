@@ -1,0 +1,33 @@
+# 依赖目录
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# 构建产物
+server/dist/
+client/dist/
+
+# 数据库文件
+data/
+
+# 日志文件
+logs/*.log
+
+# 临时文件
+tempFiles/*
+!tempFiles/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
+.env.local
+.env.*.local

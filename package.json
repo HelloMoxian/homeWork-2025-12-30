@@ -1,0 +1,25 @@
+{
+    "name": "homework",
+    "version": "1.0.0",
+    "description": "家用小工具",
+    "private": true,
+    "scripts": {
+        "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+        "dev:server": "cd server && npm run dev",
+        "dev:client": "cd client && npm run dev",
+        "build": "npm run build:client && npm run build:server",
+        "build:server": "cd server && npm run build",
+        "build:client": "cd client && npm run build",
+        "start": "cd server && npm start",
+        "db:init": "npx tsx scripts/init-db.ts",
+        "install:all": "npm install && cd server && npm install && cd ../client && npm install"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2",
+        "tsx": "^4.16.0"
+    },
+    "dependencies": {
+        "@types/better-sqlite3": "^7.6.13",
+        "better-sqlite3": "^12.5.0"
+    }
+}
