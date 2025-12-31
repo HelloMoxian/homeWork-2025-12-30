@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, Edit2, Trash2, Play, BookOpen, Search, Filter, ChevronDown, RotateCcw } from 'lucide-react'
+import { Plus, ArrowLeft, Edit2, Trash2, Play, BookOpen, Search, RotateCcw, ChevronUp, ChevronDown, CheckSquare, Square } from 'lucide-react'
 import PageContainer from '../components/PageContainer'
 import AddItemDialog from '../components/knowledge/AddItemDialog'
 import StudyModal from '../components/knowledge/StudyModal'
@@ -47,8 +47,36 @@ interface KnowledgeItem {
     updated_at?: string
 }
 
-type SortOption = 'default' | 'name' | 'correct' | 'wrong' | 'lastStudy' | 'random'
+type SortField = 'name' | 'keywords' | 'correct_count' | 'wrong_count' | 'consecutive_correct' | 'consecutive_wrong' | 'last_study_at' | 'sort_weight'
+type SortDirection = 'asc' | 'desc'
 type FilterOption = 'all' | 'never' | 'weak' | 'strong'
+
+// 格式化最后学习时间
+function formatLastStudyTime(dateStr?: string): string {
+    if (!dateStr) return '从未学习'
+
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+        // 检查是否是今天
+        const isToday = date.toDateString() === now.toDateString()
+        if (isToday) return '今天学过'
+        return '1天前'
+    } else if (diffDays === 1) {
+        return '1天前'
+    } else if (diffDays < 30) {
+        return `${diffDays}天前`
+    } else if (diffDays < 365) {
+        const months = Math.floor(diffDays / 30)
+        return `${months}个月前`
+    } else {
+        const years = Math.floor(diffDays / 365)
+        return `${years}年前`
+    }
+}
 
 export default function SectionDetailPage() {
     const { categoryId, sectionId } = useParams<{ categoryId: string; sectionId: string }>()
@@ -62,8 +90,14 @@ export default function SectionDetailPage() {
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
     const [showStudyModal, setShowStudyModal] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
-    const [sortOption, setSortOption] = useState<SortOption>('default')
     const [filterOption, setFilterOption] = useState<FilterOption>('all')
+
+    // 排序状态
+    const [sortField, setSortField] = useState<SortField>('sort_weight')
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+    // 勾选状态
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
     useEffect(() => {
         if (categoryId && sectionId) {
@@ -73,21 +107,18 @@ export default function SectionDetailPage() {
 
     const fetchData = async () => {
         try {
-            // 获取分类信息
             const categoryRes = await fetch(`/api/knowledge/categories/${categoryId}`)
             const categoryResult = await categoryRes.json()
             if (categoryResult.success) {
                 setCategory(categoryResult.data)
             }
 
-            // 获取板块信息
             const sectionRes = await fetch(`/api/knowledge/sections/${sectionId}`)
             const sectionResult = await sectionRes.json()
             if (sectionResult.success) {
                 setSection(sectionResult.data)
             }
 
-            // 获取知识条目
             const itemsRes = await fetch(`/api/knowledge/items?sectionId=${sectionId}`)
             const itemsResult = await itemsRes.json()
             if (itemsResult.success) {
@@ -112,6 +143,11 @@ export default function SectionDetailPage() {
             const result = await response.json()
             if (result.success) {
                 fetchData()
+                setSelectedIds(prev => {
+                    const next = new Set(prev)
+                    next.delete(item.id)
+                    return next
+                })
             } else {
                 alert('删除失败: ' + result.error)
             }
@@ -142,7 +178,6 @@ export default function SectionDetailPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isCorrect })
             })
-            // 更新本地数据
             setItems(prev => prev.map(item => {
                 if (item.id === itemId) {
                     return {
@@ -161,7 +196,6 @@ export default function SectionDetailPage() {
         }
     }
 
-    // 清空所有学习记录
     const handleClearAllStudyRecords = async () => {
         if (!confirm('确定要清空本板块所有知识点的学习记录吗？\n此操作不可恢复！')) {
             return
@@ -173,7 +207,6 @@ export default function SectionDetailPage() {
             })
             const result = await response.json()
             if (result.success) {
-                // 更新本地数据
                 setItems(prev => prev.map(item => ({
                     ...item,
                     correct_count: 0,
@@ -190,6 +223,48 @@ export default function SectionDetailPage() {
             }
         } catch (error) {
             alert('清空失败: ' + error)
+        }
+    }
+
+    // 处理排序点击
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortField(field)
+            setSortDirection('asc')
+        }
+    }
+
+    // 渲染排序图标
+    const renderSortIcon = (field: SortField) => {
+        if (sortField !== field) {
+            return <ChevronUp size={14} className="text-gray-300" />
+        }
+        return sortDirection === 'asc'
+            ? <ChevronUp size={14} className="text-purple-500" />
+            : <ChevronDown size={14} className="text-purple-500" />
+    }
+
+    // 勾选操作
+    const toggleSelect = (id: number, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+            return next
+        })
+    }
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === displayItems.length) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(displayItems.map(item => item.id)))
         }
     }
 
@@ -220,34 +295,51 @@ export default function SectionDetailPage() {
         }
 
         // 排序
-        switch (sortOption) {
-            case 'name':
-                result.sort((a, b) => a.name.localeCompare(b.name))
-                break
-            case 'correct':
-                result.sort((a, b) => (b.correct_count || 0) - (a.correct_count || 0))
-                break
-            case 'wrong':
-                result.sort((a, b) => (b.wrong_count || 0) - (a.wrong_count || 0))
-                break
-            case 'lastStudy':
-                result.sort((a, b) => {
-                    if (!a.last_study_at) return 1
-                    if (!b.last_study_at) return -1
-                    return new Date(b.last_study_at).getTime() - new Date(a.last_study_at).getTime()
-                })
-                break
-            case 'random':
-                result.sort(() => Math.random() - 0.5)
-                break
-            default:
-                result.sort((a, b) => (a.sort_weight || 0) - (b.sort_weight || 0))
-        }
+        result.sort((a, b) => {
+            let comparison = 0
+            switch (sortField) {
+                case 'name':
+                    comparison = a.name.localeCompare(b.name)
+                    break
+                case 'keywords':
+                    comparison = (a.keywords || '').localeCompare(b.keywords || '')
+                    break
+                case 'correct_count':
+                    comparison = (a.correct_count || 0) - (b.correct_count || 0)
+                    break
+                case 'wrong_count':
+                    comparison = (a.wrong_count || 0) - (b.wrong_count || 0)
+                    break
+                case 'consecutive_correct':
+                    comparison = (a.consecutive_correct || 0) - (b.consecutive_correct || 0)
+                    break
+                case 'consecutive_wrong':
+                    comparison = (a.consecutive_wrong || 0) - (b.consecutive_wrong || 0)
+                    break
+                case 'last_study_at':
+                    if (!a.last_study_at && !b.last_study_at) comparison = 0
+                    else if (!a.last_study_at) comparison = 1
+                    else if (!b.last_study_at) comparison = -1
+                    else comparison = new Date(a.last_study_at).getTime() - new Date(b.last_study_at).getTime()
+                    break
+                default:
+                    comparison = (a.sort_weight || 0) - (b.sort_weight || 0)
+            }
+            return sortDirection === 'asc' ? comparison : -comparison
+        })
 
         return result
     }
 
     const displayItems = getFilteredAndSortedItems()
+
+    // 获取要学习的项目：如果有勾选则只学习勾选的，否则学习全部，按当前排序顺序
+    const getStudyItems = () => {
+        if (selectedIds.size > 0) {
+            return displayItems.filter(item => selectedIds.has(item.id))
+        }
+        return displayItems
+    }
 
     const getSectionColor = () => section?.color || category?.color || '#8b5cf6'
 
@@ -290,17 +382,11 @@ export default function SectionDetailPage() {
                     </button>
 
                     <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span
-                            className="cursor-pointer hover:text-gray-700"
-                            onClick={() => navigate('/knowledge')}
-                        >
+                        <span className="cursor-pointer hover:text-gray-700" onClick={() => navigate('/knowledge')}>
                             知识库
                         </span>
                         <span>/</span>
-                        <span
-                            className="cursor-pointer hover:text-gray-700"
-                            onClick={() => navigate(`/knowledge/${categoryId}`)}
-                        >
+                        <span className="cursor-pointer hover:text-gray-700" onClick={() => navigate(`/knowledge/${categoryId}`)}>
                             {category.name}
                         </span>
                         <span>/</span>
@@ -320,15 +406,12 @@ export default function SectionDetailPage() {
                     </button>
 
                     <button
-                        onClick={() => {
-                            setSortOption('random')
-                            setShowStudyModal(true)
-                        }}
-                        disabled={items.length === 0}
+                        onClick={() => setShowStudyModal(true)}
+                        disabled={getStudyItems().length === 0}
                         className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Play size={20} />
-                        开始学习
+                        开始学习 {selectedIds.size > 0 && `(${selectedIds.size})`}
                     </button>
 
                     <button
@@ -364,25 +447,13 @@ export default function SectionDetailPage() {
                         <option value="strong">已掌握</option>
                     </select>
 
-                    <select
-                        value={sortOption}
-                        onChange={(e) => setSortOption(e.target.value as SortOption)}
-                        className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    >
-                        <option value="default">默认排序</option>
-                        <option value="name">按名称</option>
-                        <option value="correct">按正确次数</option>
-                        <option value="wrong">按错误次数</option>
-                        <option value="lastStudy">按最后学习</option>
-                        <option value="random">随机</option>
-                    </select>
-
                     <span className="text-sm text-gray-500">
                         共 {displayItems.length} / {items.length} 个知识点
+                        {selectedIds.size > 0 && ` | 已选 ${selectedIds.size} 个`}
                     </span>
                 </div>
 
-                {/* 知识列表 */}
+                {/* 知识列表 - 表格形式 */}
                 {items.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 rounded-xl">
                         <BookOpen size={64} className="text-gray-300 mb-4" />
@@ -390,81 +461,158 @@ export default function SectionDetailPage() {
                         <p className="text-gray-400 text-sm mt-1">点击上方按钮添加第一个知识点</p>
                     </div>
                 ) : (
-                    <div className="flex-1 overflow-auto">
-                        <div className="grid gap-3">
-                            {displayItems.map((item, index) => (
-                                <div
-                                    key={item.id}
-                                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-4 cursor-pointer group"
-                                    onClick={() => handleEdit(item)}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        {/* 序号 */}
-                                        <div
-                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0"
-                                            style={{
-                                                backgroundColor: getSectionColor() + '20',
-                                                color: getSectionColor()
-                                            }}
-                                        >
-                                            {index + 1}
+                    <div className="flex-1 overflow-auto bg-white rounded-xl shadow-sm">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 sticky top-0">
+                                <tr className="text-left text-sm text-gray-600">
+                                    <th className="p-3 w-12">
+                                        <button onClick={toggleSelectAll} className="hover:bg-gray-200 p-1 rounded">
+                                            {selectedIds.size === displayItems.length && displayItems.length > 0 ? (
+                                                <CheckSquare size={18} className="text-purple-500" />
+                                            ) : (
+                                                <Square size={18} className="text-gray-400" />
+                                            )}
+                                        </button>
+                                    </th>
+                                    <th className="p-3 w-10">#</th>
+                                    <th className="p-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('name')}>
+                                        <div className="flex items-center gap-1">
+                                            知识名称 {renderSortIcon('name')}
                                         </div>
-
-                                        {/* 主要内容 */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
-                                                {item.keywords && (
-                                                    <div className="flex gap-1 flex-shrink-0">
-                                                        {item.keywords.split(/[,，]/).slice(0, 3).map((kw, i) => (
-                                                            <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">
-                                                                {kw.trim()}
-                                                            </span>
-                                                        ))}
-                                                    </div>
+                                    </th>
+                                    <th className="p-3 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('keywords')}>
+                                        <div className="flex items-center gap-1">
+                                            关键字 {renderSortIcon('keywords')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-20 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('correct_count')}>
+                                        <div className="flex items-center justify-center gap-1">
+                                            正确 {renderSortIcon('correct_count')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-20 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('wrong_count')}>
+                                        <div className="flex items-center justify-center gap-1">
+                                            错误 {renderSortIcon('wrong_count')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-20 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('consecutive_correct')}>
+                                        <div className="flex items-center justify-center gap-1">
+                                            连正 {renderSortIcon('consecutive_correct')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-20 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('consecutive_wrong')}>
+                                        <div className="flex items-center justify-center gap-1">
+                                            连错 {renderSortIcon('consecutive_wrong')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-28 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('last_study_at')}>
+                                        <div className="flex items-center gap-1">
+                                            最后学习 {renderSortIcon('last_study_at')}
+                                        </div>
+                                    </th>
+                                    <th className="p-3 w-24 text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {displayItems.map((item, index) => (
+                                    <tr
+                                        key={item.id}
+                                        className={`border-t border-gray-100 hover:bg-gray-50 cursor-pointer transition ${selectedIds.has(item.id) ? 'bg-purple-50' : ''
+                                            }`}
+                                        onClick={() => handleEdit(item)}
+                                    >
+                                        <td className="p-3">
+                                            <button
+                                                onClick={(e) => toggleSelect(item.id, e)}
+                                                className="hover:bg-gray-200 p-1 rounded"
+                                            >
+                                                {selectedIds.has(item.id) ? (
+                                                    <CheckSquare size={18} className="text-purple-500" />
+                                                ) : (
+                                                    <Square size={18} className="text-gray-400" />
                                                 )}
+                                            </button>
+                                        </td>
+                                        <td className="p-3">
+                                            <div
+                                                className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
+                                                style={{
+                                                    backgroundColor: getSectionColor() + '20',
+                                                    color: getSectionColor()
+                                                }}
+                                            >
+                                                {index + 1}
                                             </div>
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="font-medium text-gray-800">{item.name}</div>
                                             {item.brief_note && (
-                                                <p className="text-sm text-gray-500 mt-1 truncate">{item.brief_note}</p>
+                                                <div className="text-xs text-gray-500 truncate max-w-xs mt-0.5">
+                                                    {item.brief_note}
+                                                </div>
                                             )}
-                                        </div>
-
-                                        {/* 统计 */}
-                                        <div className="flex items-center gap-4 text-sm flex-shrink-0">
-                                            <span className="text-green-600">✓ {item.correct_count || 0}</span>
-                                            <span className="text-red-500">✗ {item.wrong_count || 0}</span>
-                                            {item.consecutive_correct && item.consecutive_correct >= 3 && (
-                                                <span className="px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full">
-                                                    已掌握
-                                                </span>
+                                        </td>
+                                        <td className="p-3">
+                                            {item.keywords && (
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {item.keywords.split(/[,，]/).slice(0, 3).map((kw, i) => (
+                                                        <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+                                                            {kw.trim()}
+                                                        </span>
+                                                    ))}
+                                                    {item.keywords.split(/[,，]/).length > 3 && (
+                                                        <span className="text-xs text-gray-400">+{item.keywords.split(/[,，]/).length - 3}</span>
+                                                    )}
+                                                </div>
                                             )}
-                                        </div>
-
-                                        {/* 操作 */}
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleEdit(item)
-                                                }}
-                                                className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition"
-                                            >
-                                                <Edit2 size={14} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleDelete(item)
-                                                }}
-                                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="text-green-600 font-medium">{item.correct_count || 0}</span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="text-red-500 font-medium">{item.wrong_count || 0}</span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className={`font-medium ${(item.consecutive_correct || 0) >= 3 ? 'text-green-600' : 'text-gray-600'}`}>
+                                                {item.consecutive_correct || 0}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className={`font-medium ${(item.consecutive_wrong || 0) >= 3 ? 'text-red-500' : 'text-gray-600'}`}>
+                                                {item.consecutive_wrong || 0}
+                                            </span>
+                                        </td>
+                                        <td className="p-3">
+                                            <span className={`text-sm ${item.last_study_at ? 'text-gray-600' : 'text-gray-400'}`}>
+                                                {formatLastStudyTime(item.last_study_at)}
+                                            </span>
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="flex justify-center gap-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleEdit(item)
+                                                    }}
+                                                    className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition"
+                                                >
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleDelete(item)
+                                                    }}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>
@@ -481,14 +629,14 @@ export default function SectionDetailPage() {
                 />
             )}
 
-            {/* 学习弹窗 */}
+            {/* 学习弹窗 - 传入按当前顺序排列的项目 */}
             {showStudyModal && (
                 <StudyModal
                     sectionName={section.name}
-                    items={displayItems}
+                    items={getStudyItems()}
                     onClose={() => {
                         setShowStudyModal(false)
-                        fetchData() // 刷新数据
+                        fetchData()
                     }}
                     onStudyUpdate={handleStudyUpdate}
                 />

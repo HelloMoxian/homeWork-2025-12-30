@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { X, ChevronLeft, ChevronRight, Check, XCircle } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface KnowledgeItem {
     id: number
@@ -58,17 +60,22 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
         videoRefs.current = []
     }, [currentIndex])
 
-    // 进入阶段3时自动播放音视频
+    // 阶段2时自动播放音频，阶段3时自动播放视频
     useEffect(() => {
-        if (revealStage === 3) {
-            // 自动播放第一个音频
-            if (audioRefs.current.length > 0) {
-                audioRefs.current[0]?.play().catch(() => { })
-            }
-            // 自动播放第一个视频
-            if (videoRefs.current.length > 0) {
-                videoRefs.current[0]?.play().catch(() => { })
-            }
+        if (revealStage === 2) {
+            // 阶段2：自动播放第一个音频
+            setTimeout(() => {
+                if (audioRefs.current.length > 0) {
+                    audioRefs.current[0]?.play().catch(() => { })
+                }
+            }, 100)
+        } else if (revealStage === 3) {
+            // 阶段3：自动播放第一个视频
+            setTimeout(() => {
+                if (videoRefs.current.length > 0) {
+                    videoRefs.current[0]?.play().catch(() => { })
+                }
+            }, 100)
         }
     }, [revealStage])
 
@@ -210,105 +217,61 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
 
             {/* 主内容区 - 可点击推进阶段 */}
             <div
-                className="flex-1 flex flex-col overflow-auto cursor-pointer select-none"
+                className="flex-1 flex flex-col overflow-auto cursor-pointer select-none p-4"
                 onClick={handleContentClick}
             >
-                {/* 阶段1: 知识关键字 - 占据屏幕一半 */}
-                <div
-                    className="flex items-center justify-center px-8 transition-all duration-500"
-                    style={{
-                        minHeight: revealStage === 1 ? '50vh' : keywordFontSize,
-                        height: revealStage === 1 ? '50vh' : 'auto'
-                    }}
-                >
-                    {currentItem.keywords ? (
-                        <div className="flex items-center justify-center gap-4 md:gap-8 flex-wrap">
-                            {currentItem.keywords.split(/[,，]/).filter(kw => kw.trim()).map((kw, i) => (
-                                <span
-                                    key={i}
-                                    className="px-6 md:px-10 py-4 md:py-6 bg-gradient-to-r from-cyan-500/40 to-teal-500/40 backdrop-blur-sm rounded-2xl md:rounded-3xl font-bold text-white shadow-2xl border-2 border-white/30 animate-pulse"
-                                    style={{ fontSize: `${calculatedFontSize}px` }}
-                                >
-                                    {kw.trim()}
-                                </span>
-                            ))}
-                        </div>
-                    ) : (
-                        <span
-                            className="text-white/50 font-bold"
-                            style={{ fontSize: `${calculatedFontSize}px` }}
-                        >
-                            {currentItem.name}
-                        </span>
-                    )}
-                </div>
-
-                {/* 阶段2+: 知识简注 */}
-                {revealStage >= 2 && (
-                    <div className="px-8 py-6 animate-fadeIn">
-                        <div className="max-w-4xl mx-auto bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white">
-                            <h3 className="text-lg font-semibold text-cyan-300 mb-2">📝 简注</h3>
-                            <p className="text-2xl md:text-3xl leading-relaxed">
-                                {currentItem.brief_note || '暂无简注'}
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* 阶段3: 全部内容 */}
-                {revealStage >= 3 && (
-                    <div className="px-8 py-4 space-y-6 animate-fadeIn">
-                        <div className="max-w-5xl mx-auto space-y-6">
-                            {/* 知识名 */}
-                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white">
-                                <h3 className="text-lg font-semibold text-cyan-300 mb-2">📖 知识名</h3>
-                                <h1 className="text-3xl md:text-4xl font-bold">{currentItem.name}</h1>
+                {/* 上半部分：左-关键字，右-简注+简介+音频 */}
+                <div className="flex gap-4 mb-4" style={{ minHeight: revealStage === 1 ? '60vh' : '20vh' }}>
+                    {/* 左上: 知识关键字 - 始终显示 */}
+                    <div className="flex-1 bg-white/10 backdrop-blur-lg rounded-2xl p-6 flex items-center justify-center">
+                        {currentItem.keywords ? (
+                            <div className="flex items-center justify-center gap-4 md:gap-8 flex-wrap">
+                                {currentItem.keywords.split(/[,，]/).filter(kw => kw.trim()).map((kw, i) => (
+                                    <span
+                                        key={i}
+                                        className="px-6 md:px-10 py-4 md:py-6 bg-gradient-to-r from-cyan-500/40 to-teal-500/40 backdrop-blur-sm rounded-2xl md:rounded-3xl font-bold text-white shadow-2xl border-2 border-white/30 animate-pulse"
+                                        style={{ fontSize: `${calculatedFontSize}px` }}
+                                    >
+                                        {kw.trim()}
+                                    </span>
+                                ))}
                             </div>
+                        ) : (
+                            <span
+                                className="text-white/50 font-bold"
+                                style={{ fontSize: `${calculatedFontSize}px` }}
+                            >
+                                {currentItem.name}
+                            </span>
+                        )}
+                    </div>
 
+                    {/* 右上: 简注 + 简介 + 音频 - 阶段2+ */}
+                    {revealStage >= 2 && (
+                        <div className="flex-1 bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white overflow-auto animate-fadeIn">
+                            {/* 简注 */}
+                            <div className="mb-4">
+                                <h3 className="text-lg font-semibold text-cyan-300 mb-2">📝 简注</h3>
+                                <p className="text-2xl md:text-3xl leading-relaxed">
+                                    {currentItem.brief_note || '暂无简注'}
+                                </p>
+                            </div>
                             {/* 简介 */}
                             {currentItem.summary && (
-                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white">
+                                <div className="mb-4">
                                     <h3 className="text-lg font-semibold text-cyan-300 mb-2">📋 简介</h3>
-                                    <p className="text-xl leading-relaxed">{currentItem.summary}</p>
-                                </div>
-                            )}
-
-                            {/* 详情 */}
-                            {currentItem.detail && (
-                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white">
-                                    <h3 className="text-lg font-semibold text-cyan-300 mb-2">📚 详情</h3>
-                                    <div className="text-lg leading-relaxed whitespace-pre-wrap">
-                                        {currentItem.detail}
+                                    <div className="text-xl leading-relaxed prose prose-invert prose-lg max-w-none">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {currentItem.summary}
+                                        </ReactMarkdown>
                                     </div>
                                 </div>
                             )}
-
-                            {/* 图片 */}
-                            {imagePaths.length > 0 && (
-                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6">
-                                    <h3 className="text-lg font-semibold text-cyan-300 mb-4">🖼️ 图片</h3>
-                                    <div className="flex flex-wrap gap-4 justify-center">
-                                        {imagePaths.map((path, i) => (
-                                            <img
-                                                key={i}
-                                                src={`/${path}`}
-                                                alt=""
-                                                className="max-h-64 rounded-xl shadow-lg cursor-pointer hover:scale-105 transition"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    window.open(`/${path}`, '_blank')
-                                                }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* 音频 */}
                             {audioPaths.length > 0 && (
-                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6">
-                                    <h3 className="text-lg font-semibold text-cyan-300 mb-4">🔊 音频</h3>
-                                    <div className="flex flex-wrap gap-4 justify-center">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-cyan-300 mb-2">🔊 音频</h3>
+                                    <div className="flex flex-wrap gap-2">
                                         {audioPaths.map((path, i) => (
                                             <audio
                                                 key={i}
@@ -322,42 +285,132 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+                </div>
 
-                            {/* 视频 */}
-                            {videoPaths.length > 0 && (
-                                <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6">
-                                    <h3 className="text-lg font-semibold text-cyan-300 mb-4">🎬 视频</h3>
-                                    <div className="flex flex-wrap gap-4 justify-center">
-                                        {videoPaths.map((path, i) => (
-                                            <video
-                                                key={i}
-                                                ref={(el) => { if (el) videoRefs.current[i] = el }}
-                                                controls
-                                                src={`/${path}`}
-                                                className="max-h-64 rounded-xl"
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        ))}
+                {/* 下半部分：详情、图片、视频 - 阶段3 */}
+                {revealStage >= 3 && (
+                    <div className="flex-1 animate-fadeIn">
+                        {(() => {
+                            // 计算底部有哪些元素需要显示
+                            const hasDetail = !!currentItem.detail
+                            const hasImages = imagePaths.length > 0
+                            const hasVideos = videoPaths.length > 0
+                            const bottomItems = [hasDetail, hasImages, hasVideos].filter(Boolean).length
+
+                            if (bottomItems === 0) {
+                                return (
+                                    <div className="h-full bg-white/10 backdrop-blur-lg rounded-2xl p-6 flex items-center justify-center">
+                                        <div className="text-center text-white/50">
+                                            <p className="text-lg mb-2">暂无更多内容</p>
+                                            {/* 学习统计 */}
+                                            <div className="flex flex-wrap justify-center gap-4 text-sm text-white/70 mt-4">
+                                                <span className="flex items-center gap-1">
+                                                    <Check size={14} className="text-green-400" />
+                                                    正确 {currentItem.correct_count || 0}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <XCircle size={14} className="text-red-400" />
+                                                    错误 {currentItem.wrong_count || 0}
+                                                </span>
+                                                <span>连正 {currentItem.consecutive_correct || 0}</span>
+                                                <span>连错 {currentItem.consecutive_wrong || 0}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )
+                            }
 
-                            {/* 学习统计 */}
-                            <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-4">
-                                <div className="flex justify-center gap-8 text-base text-white/70">
-                                    <span className="flex items-center gap-2">
-                                        <Check size={18} className="text-green-400" />
+                            return (
+                                <div className={`h-full grid gap-4 ${bottomItems === 1 ? 'grid-cols-1' :
+                                    bottomItems === 2 ? 'grid-cols-2' :
+                                        'grid-cols-3'
+                                    }`}>
+                                    {/* 详情 */}
+                                    {hasDetail && (
+                                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white overflow-auto">
+                                            <h3 className="text-lg font-semibold text-cyan-300 mb-2">📚 详情</h3>
+                                            <div className="prose prose-invert prose-lg max-w-none 
+                                                prose-headings:text-cyan-200 prose-headings:font-bold
+                                                prose-p:text-white prose-p:leading-relaxed
+                                                prose-strong:text-yellow-300 prose-strong:font-bold
+                                                prose-em:text-pink-300
+                                                prose-ul:text-white prose-ol:text-white
+                                                prose-li:marker:text-cyan-400
+                                                prose-code:text-green-300 prose-code:bg-black/30 prose-code:px-1 prose-code:rounded
+                                                prose-pre:bg-black/40 prose-pre:rounded-xl
+                                                prose-blockquote:border-l-cyan-400 prose-blockquote:text-white/80
+                                                prose-a:text-cyan-300 prose-a:underline
+                                                prose-table:text-white prose-th:text-cyan-200 prose-td:border-white/20
+                                            ">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {currentItem.detail}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 图片 */}
+                                    {hasImages && (
+                                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 overflow-auto">
+                                            <h3 className="text-lg font-semibold text-cyan-300 mb-4">🖼️ 图片</h3>
+                                            <div className="flex flex-wrap gap-4 justify-center">
+                                                {imagePaths.map((path, i) => (
+                                                    <img
+                                                        key={i}
+                                                        src={`/${path}`}
+                                                        alt=""
+                                                        className="max-h-48 rounded-xl shadow-lg cursor-pointer hover:scale-105 transition"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            window.open(`/${path}`, '_blank')
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 视频 */}
+                                    {hasVideos && (
+                                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 overflow-auto">
+                                            <h3 className="text-lg font-semibold text-cyan-300 mb-4">🎬 视频</h3>
+                                            <div className="flex flex-wrap gap-4 justify-center">
+                                                {videoPaths.map((path, i) => (
+                                                    <video
+                                                        key={i}
+                                                        ref={(el) => { if (el) videoRefs.current[i] = el }}
+                                                        controls
+                                                        src={`/${path}`}
+                                                        className="max-h-48 rounded-xl"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })()}
+
+                        {/* 学习统计 - 固定在底部区域下方 */}
+                        {(currentItem.detail || imagePaths.length > 0 || videoPaths.length > 0) && (
+                            <div className="mt-4 bg-white/5 backdrop-blur-lg rounded-2xl p-3">
+                                <div className="flex flex-wrap justify-center gap-6 text-sm text-white/70">
+                                    <span className="flex items-center gap-1">
+                                        <Check size={14} className="text-green-400" />
                                         正确 {currentItem.correct_count || 0}
                                     </span>
-                                    <span className="flex items-center gap-2">
-                                        <XCircle size={18} className="text-red-400" />
+                                    <span className="flex items-center gap-1">
+                                        <XCircle size={14} className="text-red-400" />
                                         错误 {currentItem.wrong_count || 0}
                                     </span>
-                                    <span>连续正确 {currentItem.consecutive_correct || 0}</span>
-                                    <span>连续错误 {currentItem.consecutive_wrong || 0}</span>
+                                    <span>连正 {currentItem.consecutive_correct || 0}</span>
+                                    <span>连错 {currentItem.consecutive_wrong || 0}</span>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
