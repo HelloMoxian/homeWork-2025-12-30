@@ -229,7 +229,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                                 {currentItem.keywords.split(/[,，]/).filter(kw => kw.trim()).map((kw, i) => (
                                     <span
                                         key={i}
-                                        className="px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-cyan-500/40 to-teal-500/40 backdrop-blur-sm rounded-xl md:rounded-2xl font-bold text-white shadow-2xl border-2 border-white/30 animate-pulse"
+                                        className="font-bold text-white"
                                         style={{ fontSize: `${calculatedFontSize}px` }}
                                     >
                                         {kw.trim()}
@@ -361,7 +361,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                                                         key={i}
                                                         src={`/${path}`}
                                                         alt=""
-                                                        className="w-full object-contain rounded-xl shadow-lg cursor-pointer hover:opacity-90 transition"
+                                                        className="w-full max-h-[50vh] object-contain rounded-xl shadow-lg cursor-pointer hover:opacity-90 transition"
                                                         onClick={(e) => {
                                                             e.stopPropagation()
                                                             window.open(`/${path}`, '_blank')
@@ -383,7 +383,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                                                         ref={(el) => { if (el) videoRefs.current[i] = el }}
                                                         controls
                                                         src={`/${path}`}
-                                                        className="w-full rounded-xl"
+                                                        className="w-full max-h-[50vh] rounded-xl object-contain"
                                                         onClick={(e) => e.stopPropagation()}
                                                     />
                                                 ))}
