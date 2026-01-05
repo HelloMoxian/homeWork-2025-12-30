@@ -188,11 +188,43 @@ function getDirectories(dirPath: string): string[] {
         .map(dirent => dirent.name);
 }
 
-function generateDirName(name: string): string {
-    // 生成目录名：时间戳 + 随机字符串
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    return `${timestamp}_${random}`;
+// 将字符串转换为合法的目录名
+function sanitizeDirName(str: string): string {
+    // 移除或替换不合法的文件系统字符
+    return str
+        .replace(/[<>:"/\\|?*]/g, '') // 移除Windows不允许的字符
+        .replace(/[\s]+/g, '_')       // 空格替换为下划线
+        .replace(/[^\w\u4e00-\u9fa5\-_.]/g, '') // 只保留字母、数字、中文、下划线、连字符、点
+        .substring(0, 50)             // 限制长度
+        .replace(/^[.\s]+|[.\s]+$/g, ''); // 移除开头和结尾的点和空格
+}
+
+function generateDirName(name: string, keywords?: string): string {
+    // 优先使用关键字，否则使用名称
+    const baseName = keywords?.trim() || name?.trim() || '';
+    const sanitized = sanitizeDirName(baseName);
+
+    // 如果清理后为空，使用时间戳
+    if (!sanitized) {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 8);
+        return `${timestamp}_${random}`;
+    }
+
+    return sanitized;
+}
+
+// 确保目录名在父目录中唯一
+function ensureUniqueDirName(parentPath: string, baseDirName: string): string {
+    let dirName = baseDirName;
+    let counter = 1;
+
+    while (fs.existsSync(path.join(parentPath, dirName))) {
+        dirName = `${baseDirName}_${counter}`;
+        counter++;
+    }
+
+    return dirName;
 }
 
 // ============ 一级板块（知识库）操作 ============
@@ -878,16 +910,45 @@ export function createItem(subSectionId: string, data: {
     summary?: string;
     detail?: string;
     sort_weight?: number;
+    temp_files?: string[];  // 临时文件路径列表
 }): Item | null {
     const parts = subSectionId.split('/');
     if (parts.length !== 3) return null;
 
     const [categoryId, sectionDirName, subSectionDirName] = parts;
-    const dirName = generateDirName(data.name);
-    const itemPath = path.join(KNOWLEDGE_ROOT, categoryId, sectionDirName, subSectionDirName, dirName);
+    const parentPath = path.join(KNOWLEDGE_ROOT, categoryId, sectionDirName, subSectionDirName);
+    const baseDirName = generateDirName(data.name, data.keywords);
+    const dirName = ensureUniqueDirName(parentPath, baseDirName);
+    const itemPath = path.join(parentPath, dirName);
     ensureDir(itemPath);
 
     const now = new Date().toISOString();
+
+    // 处理临时文件：移动到知识条目目录
+    const audioFiles: string[] = [];
+    const imageFiles: string[] = [];
+    const videoFiles: string[] = [];
+
+    if (data.temp_files && data.temp_files.length > 0) {
+        const tempDir = path.join(KNOWLEDGE_ROOT, '.temp');
+        for (const tempFile of data.temp_files) {
+            const tempFilePath = path.join(tempDir, tempFile);
+            if (fs.existsSync(tempFilePath)) {
+                const destPath = path.join(itemPath, tempFile);
+                fs.renameSync(tempFilePath, destPath);
+
+                // 根据文件前缀分类
+                if (tempFile.startsWith('img_')) {
+                    imageFiles.push(tempFile);
+                } else if (tempFile.startsWith('aud_')) {
+                    audioFiles.push(tempFile);
+                } else if (tempFile.startsWith('vid_')) {
+                    videoFiles.push(tempFile);
+                }
+            }
+        }
+    }
+
     const config: ItemConfig = {
         name: data.name,
         keywords: data.keywords,
@@ -895,9 +956,9 @@ export function createItem(subSectionId: string, data: {
         summary: data.summary,
         detail: data.detail,
         sort_weight: data.sort_weight || 0,
-        audio_files: [],
-        image_files: [],
-        video_files: [],
+        audio_files: audioFiles,
+        image_files: imageFiles,
+        video_files: videoFiles,
         correct_count: 0,
         wrong_count: 0,
         consecutive_correct: 0,
@@ -907,6 +968,13 @@ export function createItem(subSectionId: string, data: {
     };
 
     writeJsonFile(path.join(itemPath, 'config.json'), config);
+
+    // 构建返回的路径
+    const toFullPaths = (files: string[]): string => {
+        if (files.length === 0) return '[]';
+        const fullPaths = files.map(f => getRelativePath(path.join(itemPath, f)));
+        return JSON.stringify(fullPaths);
+    };
 
     return {
         id: `${subSectionId}/${dirName}`,
@@ -918,9 +986,9 @@ export function createItem(subSectionId: string, data: {
         summary: config.summary,
         detail: config.detail,
         sort_weight: config.sort_weight || 0,
-        audio_paths: '[]',
-        image_paths: '[]',
-        video_paths: '[]',
+        audio_paths: toFullPaths(audioFiles),
+        image_paths: toFullPaths(imageFiles),
+        video_paths: toFullPaths(videoFiles),
         correct_count: 0,
         wrong_count: 0,
         consecutive_correct: 0,
@@ -1135,6 +1203,69 @@ export function removeMediaFromItem(itemId: string, type: 'audio' | 'image' | 'v
     }
 
     return true;
+}
+
+// 临时文件上传目录管理
+export function getTempDir(): string {
+    const tempDir = path.join(KNOWLEDGE_ROOT, '.temp');
+    ensureDir(tempDir);
+    return tempDir;
+}
+
+// 生成临时文件名
+export function generateTempFileName(type: 'audio' | 'image' | 'video', originalName: string): string {
+    const ext = path.extname(originalName).toLowerCase();
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+
+    const prefix = type === 'audio' ? 'aud' : type === 'image' ? 'img' : 'vid';
+    return `${prefix}_${timestamp}_${random}${ext}`;
+}
+
+// 保存临时文件
+export function saveTempFile(data: Buffer, fileName: string): string {
+    const tempDir = getTempDir();
+    const filePath = path.join(tempDir, fileName);
+    fs.writeFileSync(filePath, data);
+    return fileName;
+}
+
+// 清理临时文件
+export function cleanupTempFiles(fileNames: string[]): void {
+    const tempDir = getTempDir();
+    for (const fileName of fileNames) {
+        const filePath = path.join(tempDir, fileName);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    }
+}
+
+// 清理过期的临时文件（超过24小时）
+export function cleanupExpiredTempFiles(): number {
+    const tempDir = path.join(KNOWLEDGE_ROOT, '.temp');
+    if (!fs.existsSync(tempDir)) return 0;
+
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24小时
+    let cleaned = 0;
+
+    const files = fs.readdirSync(tempDir);
+    for (const file of files) {
+        const filePath = path.join(tempDir, file);
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > maxAge) {
+            fs.unlinkSync(filePath);
+            cleaned++;
+        }
+    }
+
+    return cleaned;
+}
+
+// 获取临时文件的相对路径（用于前端预览）
+export function getTempFileRelativePath(fileName: string): string {
+    return `knowledgeFiles/.temp/${fileName}`;
 }
 
 export { KNOWLEDGE_ROOT };

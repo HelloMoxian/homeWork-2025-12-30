@@ -34,6 +34,14 @@ await fastify.register(fastifyStatic, {
     decorateReply: false
 });
 
+// 知识库文件静态访问
+const knowledgePath = path.join(__dirname, '../../knowledgeFiles');
+await fastify.register(fastifyStatic, {
+    root: knowledgePath,
+    prefix: '/knowledgeFiles/',
+    decorateReply: false
+});
+
 // 静态文件服务 - 生产环境下服务前端构建产物
 const clientDistPath = path.join(__dirname, '../../client/dist');
 await fastify.register(fastifyStatic, {

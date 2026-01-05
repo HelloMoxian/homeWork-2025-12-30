@@ -266,7 +266,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
     });
 
     // 创建知识条目
-    fastify.post<{ Body: { subsection_id: string; name: string; keywords?: string; brief_note?: string; summary?: string; detail?: string; sort_weight?: number } }>('/api/knowledge/items', async (request, reply) => {
+    fastify.post<{ Body: { subsection_id: string; name: string; keywords?: string; brief_note?: string; summary?: string; detail?: string; sort_weight?: number; temp_files?: string[] } }>('/api/knowledge/items', async (request, reply) => {
         try {
             const { subsection_id, ...data } = request.body;
             const item = KnowledgeManager.createItem(subsection_id, data);
@@ -456,6 +456,56 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
                 return reply.status(400).send({ success: false, error: '删除失败' });
             }
             return { success: true };
+        } catch (error) {
+            return reply.status(500).send({ success: false, error: String(error) });
+        }
+    });
+
+    // ============ 临时文件上传 ============
+
+    // 上传临时文件（用于新建知识条目时先上传媒体文件）
+    fastify.post<{ Querystring: { type: 'image' | 'audio' | 'video' } }>('/api/upload/knowledge-temp', async (request, reply) => {
+        try {
+            const { type } = request.query;
+            const data = await request.file();
+            if (!data) {
+                return reply.status(400).send({ success: false, error: '没有文件上传' });
+            }
+
+            const tempDir = KnowledgeManager.getTempDir();
+            const filename = KnowledgeManager.generateTempFileName(type, data.filename);
+            const filepath = path.join(tempDir, filename);
+
+            // 读取文件，对图片进行压缩
+            let buffer = await data.toBuffer();
+            if (type === 'image' && isImageFile(data.filename)) {
+                buffer = await compressImageBuffer(buffer, data.filename, { quality: 70 });
+            }
+            fs.writeFileSync(filepath, buffer);
+
+            const relativePath = KnowledgeManager.getTempFileRelativePath(filename);
+            return { success: true, data: { path: relativePath, filename } };
+        } catch (error) {
+            return reply.status(500).send({ success: false, error: String(error) });
+        }
+    });
+
+    // 删除临时文件
+    fastify.delete<{ Querystring: { filename: string } }>('/api/upload/knowledge-temp', async (request, reply) => {
+        try {
+            const { filename } = request.query;
+            KnowledgeManager.cleanupTempFiles([filename]);
+            return { success: true };
+        } catch (error) {
+            return reply.status(500).send({ success: false, error: String(error) });
+        }
+    });
+
+    // 清理过期临时文件
+    fastify.post('/api/upload/knowledge-temp/cleanup', async (request, reply) => {
+        try {
+            const cleaned = KnowledgeManager.cleanupExpiredTempFiles();
+            return { success: true, data: { cleaned } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
         }

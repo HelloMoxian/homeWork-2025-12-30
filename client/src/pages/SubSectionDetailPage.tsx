@@ -4,6 +4,7 @@ import { Plus, ArrowLeft, Edit2, Trash2, Play, BookOpen, Search, RotateCcw, Chev
 import PageContainer from '../components/PageContainer'
 import AddItemDialog from '../components/knowledge/AddItemDialog'
 import StudyModal from '../components/knowledge/StudyModal'
+import ItemPreviewModal from '../components/knowledge/ItemPreviewModal'
 
 interface KnowledgeCategory {
     id: string
@@ -103,6 +104,7 @@ export default function SubSectionDetailPage() {
     const [loading, setLoading] = useState(true)
     const [showAddDialog, setShowAddDialog] = useState(false)
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
+    const [previewItem, setPreviewItem] = useState<KnowledgeItem | null>(null)
     const [showStudyModal, setShowStudyModal] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
     const [filterOption, setFilterOption] = useState<FilterOption>('all')
@@ -184,6 +186,18 @@ export default function SubSectionDetailPage() {
     const handleEdit = (item: KnowledgeItem) => {
         setEditingItem(item)
         setShowAddDialog(true)
+    }
+
+    const handlePreview = (item: KnowledgeItem) => {
+        setPreviewItem(item)
+    }
+
+    const handlePreviewEdit = () => {
+        if (previewItem) {
+            setEditingItem(previewItem)
+            setPreviewItem(null)
+            setShowAddDialog(true)
+        }
     }
 
     const handleDialogClose = () => {
@@ -549,7 +563,7 @@ export default function SubSectionDetailPage() {
                                         key={item.id}
                                         className={`border-t border-gray-100 hover:bg-gray-50 cursor-pointer transition ${selectedIds.has(item.id) ? 'bg-emerald-50' : ''
                                             }`}
-                                        onClick={() => handleEdit(item)}
+                                        onClick={() => handlePreview(item)}
                                     >
                                         <td className="p-3">
                                             <button
@@ -657,6 +671,15 @@ export default function SubSectionDetailPage() {
                     item={editingItem}
                     onClose={handleDialogClose}
                     onSuccess={handleDialogSuccess}
+                />
+            )}
+
+            {/* 知识预览弹窗 */}
+            {previewItem && (
+                <ItemPreviewModal
+                    item={previewItem}
+                    onClose={() => setPreviewItem(null)}
+                    onEdit={handlePreviewEdit}
                 />
             )}
 

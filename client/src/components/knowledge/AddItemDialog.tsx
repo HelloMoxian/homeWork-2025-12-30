@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X, Upload, Check, Plus, Trash2, Image, Music, Video, RotateCcw } from 'lucide-react'
 
 interface KnowledgeItem {
@@ -23,6 +23,12 @@ interface KnowledgeItem {
     last_wrong_at?: string
     created_at?: string
     updated_at?: string
+}
+
+interface TempFile {
+    filename: string
+    path: string
+    type: 'image' | 'audio' | 'video'
 }
 
 interface AddItemDialogProps {
@@ -61,6 +67,15 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
     const [uploading, setUploading] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [localItem, setLocalItem] = useState<KnowledgeItem | null | undefined>(item)
+
+    // 临时文件列表（仅用于新建模式）
+    const [tempFiles, setTempFiles] = useState<TempFile[]>([])
+    const tempFilesRef = useRef<TempFile[]>([])
+
+    // 更新 ref 以便在 cleanup 时使用
+    useEffect(() => {
+        tempFilesRef.current = tempFiles
+    }, [tempFiles])
 
     useEffect(() => {
         if (item) {
@@ -106,6 +121,29 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
         }
     }
 
+    // 清理临时文件（关闭弹窗或取消时调用）
+    const cleanupTempFiles = async () => {
+        const files = tempFilesRef.current
+        for (const file of files) {
+            try {
+                await fetch(`/api/upload/knowledge-temp?filename=${encodeURIComponent(file.filename)}`, {
+                    method: 'DELETE'
+                })
+            } catch (e) {
+                console.error('清理临时文件失败:', e)
+            }
+        }
+    }
+
+    // 关闭弹窗时清理临时文件
+    const handleClose = async () => {
+        if (tempFiles.length > 0 && !confirm('关闭后已上传的媒体文件将被清理，确定要关闭吗？')) {
+            return
+        }
+        await cleanupTempFiles()
+        onClose()
+    }
+
     const parsePathArray = (paths?: string): string[] => {
         try {
             return paths ? JSON.parse(paths) : []
@@ -118,32 +156,48 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
         const file = e.target.files?.[0]
         if (!file) return
 
-        // 如果是新建条目，提示先保存
-        if (!item?.id) {
-            alert('请先保存知识条目，然后再上传媒体文件')
-            return
-        }
-
         setUploading(type)
         try {
             const uploadFormData = new FormData()
             uploadFormData.append('file', file)
 
-            const uploadUrl = `/api/upload/knowledge-media?itemId=${encodeURIComponent(item.id)}&type=${type}`
+            // 如果是新建条目，上传到临时目录
+            if (!item?.id) {
+                const uploadUrl = `/api/upload/knowledge-temp?type=${type}`
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: uploadFormData
+                })
 
-            const response = await fetch(uploadUrl, {
-                method: 'POST',
-                body: uploadFormData
-            })
-
-            const result = await response.json()
-            if (result.success) {
-                const fieldName = `${type}_paths` as keyof KnowledgeItem
-                const currentPaths = parsePathArray(formData[fieldName] as string)
-                currentPaths.push(result.data.path)
-                setFormData({ ...formData, [fieldName]: JSON.stringify(currentPaths) })
+                const result = await response.json()
+                if (result.success) {
+                    // 添加到临时文件列表
+                    setTempFiles(prev => [...prev, {
+                        filename: result.data.filename,
+                        path: result.data.path,
+                        type
+                    }])
+                } else {
+                    alert('上传失败: ' + result.error)
+                }
             } else {
-                alert('上传失败: ' + result.error)
+                // 编辑模式：直接上传到知识条目目录
+                const uploadUrl = `/api/upload/knowledge-media?itemId=${encodeURIComponent(item.id)}&type=${type}`
+
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: uploadFormData
+                })
+
+                const result = await response.json()
+                if (result.success) {
+                    const fieldName = `${type}_paths` as keyof KnowledgeItem
+                    const currentPaths = parsePathArray(formData[fieldName] as string)
+                    currentPaths.push(result.data.path)
+                    setFormData({ ...formData, [fieldName]: JSON.stringify(currentPaths) })
+                } else {
+                    alert('上传失败: ' + result.error)
+                }
             }
         } catch (error) {
             alert('上传失败: ' + error)
@@ -152,11 +206,39 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
         }
     }
 
-    const removeFile = (type: 'image' | 'audio' | 'video', index: number) => {
-        const fieldName = `${type}_paths` as keyof KnowledgeItem
-        const currentPaths = parsePathArray(formData[fieldName] as string)
-        currentPaths.splice(index, 1)
-        setFormData({ ...formData, [fieldName]: JSON.stringify(currentPaths) })
+    const removeFile = async (type: 'image' | 'audio' | 'video', index: number) => {
+        // 对于已保存的条目，需要删除已上传的文件
+        if (item?.id) {
+            const fieldName = `${type}_paths` as keyof KnowledgeItem
+            const currentPaths = parsePathArray(formData[fieldName] as string)
+            const pathToRemove = currentPaths[index]
+            const filename = pathToRemove.split('/').pop()
+
+            if (filename) {
+                try {
+                    await fetch(`/api/upload/knowledge-media?itemId=${encodeURIComponent(item.id)}&type=${type}&filename=${encodeURIComponent(filename)}`, {
+                        method: 'DELETE'
+                    })
+                } catch (e) {
+                    console.error('删除文件失败:', e)
+                }
+            }
+
+            currentPaths.splice(index, 1)
+            setFormData({ ...formData, [fieldName]: JSON.stringify(currentPaths) })
+        }
+    }
+
+    const removeTempFile = async (index: number) => {
+        const file = tempFiles[index]
+        try {
+            await fetch(`/api/upload/knowledge-temp?filename=${encodeURIComponent(file.filename)}`, {
+                method: 'DELETE'
+            })
+        } catch (e) {
+            console.error('删除临时文件失败:', e)
+        }
+        setTempFiles(prev => prev.filter((_, i) => i !== index))
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -174,14 +256,22 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                 : '/api/knowledge/items'
             const method = item?.id ? 'PUT' : 'POST'
 
+            // 如果是新建且有临时文件，附带临时文件名列表
+            const submitData = item?.id
+                ? formData
+                : { ...formData, temp_files: tempFiles.map(f => f.filename) }
+
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(submitData)
             })
 
             const result = await response.json()
             if (result.success) {
+                // 成功后清空临时文件列表（不需要清理，因为文件已移动）
+                setTempFiles([])
+                tempFilesRef.current = []
                 onSuccess()
                 onClose()
             } else {
@@ -198,13 +288,18 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
     const audioPaths = parsePathArray(formData.audio_paths)
     const videoPaths = parsePathArray(formData.video_paths)
 
+    // 获取临时文件（按类型）
+    const tempImages = tempFiles.filter(f => f.type === 'image')
+    const tempAudios = tempFiles.filter(f => f.type === 'audio')
+    const tempVideos = tempFiles.filter(f => f.type === 'video')
+
     return (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={handleClose}>
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-6 rounded-t-2xl z-10">
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold">{item ? '编辑知识条目' : '添加知识条目'}</h2>
-                        <button onClick={onClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition">
+                        <button onClick={handleClose} className="text-white hover:bg-white/20 rounded-lg p-2 transition">
                             <X size={24} />
                         </button>
                     </div>
@@ -292,8 +387,9 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                 <Image size={16} /> 图片
                             </label>
                             <div className="flex flex-wrap gap-2">
+                                {/* 已保存的图片 */}
                                 {imagePaths.map((path, index) => (
-                                    <div key={index} className="relative">
+                                    <div key={`saved-${index}`} className="relative">
                                         <img src={`/${path}`} alt="" className="w-20 h-20 object-cover rounded-lg" />
                                         <button
                                             type="button"
@@ -304,6 +400,22 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                         </button>
                                     </div>
                                 ))}
+                                {/* 临时图片 */}
+                                {tempImages.map((file, idx) => {
+                                    const tempIndex = tempFiles.findIndex(f => f === file)
+                                    return (
+                                        <div key={`temp-${idx}`} className="relative">
+                                            <img src={`/${file.path}`} alt="" className="w-20 h-20 object-cover rounded-lg border-2 border-teal-400" />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTempFile(tempIndex)}
+                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    )
+                                })}
                                 <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50">
                                     <input type="file" accept="image/*" onChange={(e) => handleFileUpload('image', e)} className="hidden" />
                                     {uploading === 'image' ? '⏳' : <Plus className="text-gray-400" />}
@@ -317,8 +429,9 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                 <Music size={16} /> 音频
                             </label>
                             <div className="space-y-2">
+                                {/* 已保存的音频 */}
                                 {audioPaths.map((path, index) => (
-                                    <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                                    <div key={`saved-${index}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
                                         <audio controls src={`/${path}`} className="flex-1 h-8" />
                                         <button
                                             type="button"
@@ -329,6 +442,22 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                         </button>
                                     </div>
                                 ))}
+                                {/* 临时音频 */}
+                                {tempAudios.map((file, idx) => {
+                                    const tempIndex = tempFiles.findIndex(f => f === file)
+                                    return (
+                                        <div key={`temp-${idx}`} className="flex items-center gap-2 bg-teal-50 p-2 rounded-lg border border-teal-200">
+                                            <audio controls src={`/${file.path}`} className="flex-1 h-8" />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTempFile(tempIndex)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )
+                                })}
                                 <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200">
                                     <input type="file" accept="audio/*" onChange={(e) => handleFileUpload('audio', e)} className="hidden" />
                                     {uploading === 'audio' ? '上传中...' : <><Plus size={16} /> 添加音频</>}
@@ -342,8 +471,9 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                 <Video size={16} /> 视频
                             </label>
                             <div className="space-y-2">
+                                {/* 已保存的视频 */}
                                 {videoPaths.map((path, index) => (
-                                    <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                                    <div key={`saved-${index}`} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
                                         <video controls src={`/${path}`} className="flex-1 max-h-32 rounded" />
                                         <button
                                             type="button"
@@ -354,6 +484,22 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                         </button>
                                     </div>
                                 ))}
+                                {/* 临时视频 */}
+                                {tempVideos.map((file, idx) => {
+                                    const tempIndex = tempFiles.findIndex(f => f === file)
+                                    return (
+                                        <div key={`temp-${idx}`} className="flex items-center gap-2 bg-teal-50 p-2 rounded-lg border border-teal-200">
+                                            <video controls src={`/${file.path}`} className="flex-1 max-h-32 rounded" />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTempFile(tempIndex)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )
+                                })}
                                 <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200">
                                     <input type="file" accept="video/*" onChange={(e) => handleFileUpload('video', e)} className="hidden" />
                                     {uploading === 'video' ? '上传中...' : <><Plus size={16} /> 添加视频</>}
@@ -408,7 +554,7 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                     <div className="flex justify-end gap-3 pt-4 border-t">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
                         >
                             取消
