@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { X, Upload, Check } from 'lucide-react'
 
 interface KnowledgeCategory {
-    id?: number
+    id?: string
     name: string
     description?: string
     logo_path?: string

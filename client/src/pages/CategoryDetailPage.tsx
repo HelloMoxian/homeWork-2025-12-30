@@ -5,7 +5,7 @@ import PageContainer from '../components/PageContainer'
 import AddSectionDialog from '../components/knowledge/AddSectionDialog'
 
 interface KnowledgeCategory {
-    id: number
+    id: string
     name: string
     description?: string
     logo_path?: string
@@ -14,8 +14,8 @@ interface KnowledgeCategory {
 }
 
 interface KnowledgeSection {
-    id: number
-    category_id: number
+    id: string
+    category_id: string
     name: string
     description?: string
     logo_path?: string
@@ -70,7 +70,7 @@ export default function CategoryDetailPage() {
         }
 
         try {
-            const response = await fetch(`/api/knowledge/sections/${section.id}`, {
+            const response = await fetch(`/api/knowledge/sections/${encodeURIComponent(section.id)}`, {
                 method: 'DELETE'
             })
             const result = await response.json()
@@ -188,7 +188,7 @@ export default function CategoryDetailPage() {
                             <div
                                 key={section.id}
                                 className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group"
-                                onClick={() => navigate(`/knowledge/${categoryId}/${section.id}`)}
+                                onClick={() => navigate(`/knowledge/${categoryId}/${section.dir_name}`)}
                             >
                                 <div className="p-5">
                                     <div className="flex items-start gap-4">
@@ -269,7 +269,7 @@ export default function CategoryDetailPage() {
             {/* 添加/编辑对话框 */}
             {showAddDialog && (
                 <AddSectionDialog
-                    categoryId={parseInt(categoryId!)}
+                    categoryId={categoryId!}
                     categoryDir={category.dir_name}
                     section={editingSection}
                     onClose={handleDialogClose}

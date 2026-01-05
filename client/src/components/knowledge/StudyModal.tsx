@@ -4,8 +4,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 interface KnowledgeItem {
-    id: number
-    section_id: number
+    id: string
+    section_id?: string
+    subsection_id?: string
     name: string
     keywords?: string
     brief_note?: string
@@ -24,7 +25,7 @@ interface StudyModalProps {
     sectionName: string
     items: KnowledgeItem[]
     onClose: () => void
-    onStudyUpdate: (itemId: number, isCorrect: boolean) => Promise<void>
+    onStudyUpdate: (itemId: string, isCorrect: boolean) => Promise<void>
 }
 
 // 展示阶段: 1=只显示关键字, 2=追加简注, 3=显示全部内容

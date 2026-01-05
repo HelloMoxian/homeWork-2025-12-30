@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { X, Upload, Check } from 'lucide-react'
 
 interface KnowledgeSection {
-    id?: number
-    category_id: number
+    id?: string
+    category_id: string
     name: string
     description?: string
     logo_path?: string
@@ -13,7 +13,7 @@ interface KnowledgeSection {
 }
 
 interface AddSectionDialogProps {
-    categoryId: number
+    categoryId: string
     categoryDir?: string
     section?: KnowledgeSection | null
     onClose: () => void
@@ -102,8 +102,8 @@ export default function AddSectionDialog({ categoryId, categoryDir, section, onC
 
         setSaving(true)
         try {
-            const url = isEditing
-                ? `/api/knowledge/sections/${section!.id}`
+            const url = isEditing && section?.id
+                ? `/api/knowledge/sections/${encodeURIComponent(section.id)}`
                 : '/api/knowledge/sections'
             const method = isEditing ? 'PUT' : 'POST'
 

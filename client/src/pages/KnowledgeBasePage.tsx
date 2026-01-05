@@ -5,7 +5,7 @@ import PageContainer from '../components/PageContainer'
 import AddCategoryDialog from '../components/knowledge/AddCategoryDialog'
 
 interface KnowledgeCategory {
-    id: number
+    id: string
     name: string
     description?: string
     logo_path?: string

@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { X, Upload, Check, Plus, Trash2, Image, Music, Video, RotateCcw } from 'lucide-react'
 
 interface KnowledgeItem {
-    id?: number
-    section_id: number
+    id?: string
+    section_id?: string
+    subsection_id?: string
     name: string
     keywords?: string
     brief_note?: string
@@ -25,9 +26,11 @@ interface KnowledgeItem {
 }
 
 interface AddItemDialogProps {
-    sectionId: number
+    sectionId?: string
+    subsectionId?: string
     categoryDir: string
     sectionDir: string
+    subsectionDir?: string
     item?: KnowledgeItem | null
     onClose: () => void
     onSuccess: () => void
@@ -40,9 +43,10 @@ function formatDateTime(dateStr?: string): string {
     return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
 }
 
-export default function AddItemDialog({ sectionId, categoryDir, sectionDir, item, onClose, onSuccess }: AddItemDialogProps) {
+export default function AddItemDialog({ sectionId, subsectionId, categoryDir, sectionDir, subsectionDir, item, onClose, onSuccess }: AddItemDialogProps) {
     const [formData, setFormData] = useState<KnowledgeItem>({
         section_id: sectionId,
+        subsection_id: subsectionId,
         name: '',
         keywords: '',
         brief_note: '',
@@ -77,7 +81,7 @@ export default function AddItemDialog({ sectionId, categoryDir, sectionDir, item
         }
 
         try {
-            const response = await fetch(`/api/knowledge/items/${item.id}/clear-study-record`, {
+            const response = await fetch(`/api/knowledge/items/${encodeURIComponent(item.id)}/clear-study-record`, {
                 method: 'PUT'
             })
             const result = await response.json()
@@ -114,12 +118,20 @@ export default function AddItemDialog({ sectionId, categoryDir, sectionDir, item
         const file = e.target.files?.[0]
         if (!file) return
 
+        // 如果是新建条目，提示先保存
+        if (!item?.id) {
+            alert('请先保存知识条目，然后再上传媒体文件')
+            return
+        }
+
         setUploading(type)
         try {
             const uploadFormData = new FormData()
             uploadFormData.append('file', file)
 
-            const response = await fetch(`/api/upload/knowledge-media?categoryDir=${categoryDir}&sectionDir=${sectionDir}&type=${type}`, {
+            const uploadUrl = `/api/upload/knowledge-media?itemId=${encodeURIComponent(item.id)}&type=${type}`
+
+            const response = await fetch(uploadUrl, {
                 method: 'POST',
                 body: uploadFormData
             })
@@ -158,7 +170,7 @@ export default function AddItemDialog({ sectionId, categoryDir, sectionDir, item
         setSaving(true)
         try {
             const url = item?.id
-                ? `/api/knowledge/items/${item.id}`
+                ? `/api/knowledge/items/${encodeURIComponent(item.id)}`
                 : '/api/knowledge/items'
             const method = item?.id ? 'PUT' : 'POST'
 

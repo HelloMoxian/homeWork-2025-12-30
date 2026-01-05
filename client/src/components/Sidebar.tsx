@@ -8,7 +8,9 @@ import {
     RefreshCw,
     Gamepad2,
     Star,
-    TrendingUp
+    TrendingUp,
+    Film,
+    Trophy
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +71,20 @@ const navItems: NavItem[] = [
         icon: <Gamepad2 size={28} />,
         color: 'text-orange-600',
         bgColor: 'bg-orange-100 hover:bg-orange-200'
+    },
+    {
+        path: '/theater',
+        label: '放映厅',
+        icon: <Film size={28} />,
+        color: 'text-indigo-600',
+        bgColor: 'bg-indigo-100 hover:bg-indigo-200'
+    },
+    {
+        path: '/honors',
+        label: '荣誉室',
+        icon: <Trophy size={28} />,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-100 hover:bg-amber-200'
     },
     {
         path: '/favorites',
