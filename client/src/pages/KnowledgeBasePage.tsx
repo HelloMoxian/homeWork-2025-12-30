@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, FolderOpen, Edit2, Trash2, BookOpen, ChevronRight } from 'lucide-react'
+import { Plus, FolderOpen, Edit2, Trash2, BookOpen, ChevronRight, RefreshCw } from 'lucide-react'
 import PageContainer from '../components/PageContainer'
 import AddCategoryDialog from '../components/knowledge/AddCategoryDialog'
 
@@ -22,6 +22,7 @@ export default function KnowledgeBasePage() {
     const navigate = useNavigate()
     const [categories, setCategories] = useState<KnowledgeCategory[]>([])
     const [loading, setLoading] = useState(true)
+    const [refreshing, setRefreshing] = useState(false)
     const [showAddDialog, setShowAddDialog] = useState(false)
     const [editingCategory, setEditingCategory] = useState<KnowledgeCategory | null>(null)
 
@@ -82,6 +83,24 @@ export default function KnowledgeBasePage() {
         return color || '#06b6d4'
     }
 
+    const handleRefreshIndex = async () => {
+        setRefreshing(true)
+        try {
+            const response = await fetch('/api/knowledge/refresh-index', { method: 'POST' })
+            const result = await response.json()
+            if (result.success) {
+                // 刷新成功后重新加载分类
+                await fetchCategories()
+            } else {
+                alert('刷新索引失败: ' + result.error)
+            }
+        } catch (error) {
+            alert('刷新索引失败: ' + error)
+        } finally {
+            setRefreshing(false)
+        }
+    }
+
     if (loading) {
         return (
             <PageContainer title="知识库">
@@ -102,13 +121,24 @@ export default function KnowledgeBasePage() {
                         <h1 className="text-2xl font-bold text-gray-800">我的知识库</h1>
                         <span className="text-gray-500 text-sm">({categories.length} 个分类)</span>
                     </div>
-                    <button
-                        onClick={() => setShowAddDialog(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:from-teal-600 hover:to-cyan-600 transition shadow-lg"
-                    >
-                        <Plus size={20} />
-                        添加知识库
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleRefreshIndex}
+                            disabled={refreshing}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition disabled:opacity-50"
+                            title="刷新索引"
+                        >
+                            <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+                            刷新索引
+                        </button>
+                        <button
+                            onClick={() => setShowAddDialog(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg hover:from-teal-600 hover:to-cyan-600 transition shadow-lg"
+                        >
+                            <Plus size={20} />
+                            添加知识库
+                        </button>
+                    </div>
                 </div>
 
                 {/* 分类卡片网格 */}

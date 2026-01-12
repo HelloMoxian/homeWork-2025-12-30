@@ -27,6 +27,13 @@
         "uploadPath": "uploadFiles/members"
     },
     "knowledgeBaseConfig": {
-        "keywordDisplayHeight": 400
+        "keywordDisplayHeight": 200,
+        "keywordSizeStep1": 120,
+        "keywordSizeStep2": 80,
+        "keywordSizeStep3": 60
+    },
+    "diaryConfig": {
+        "dataPath": "data/diaries",
+        "uploadPath": "uploadFiles/diaryFiles"
     }
 }

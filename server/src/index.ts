@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import { initDatabase } from './db/index.js';
 import familyMembersRoutes from './routes/familyMembers.js';
 import knowledgeRoutes from './routes/knowledge.js';
+import diaryRoutes from './routes/diary.js';
+import { initializeIndex } from './utils/knowledgeIndexManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +44,14 @@ await fastify.register(fastifyStatic, {
     decorateReply: false
 });
 
+// 配置文件静态访问
+const configsPath = path.join(__dirname, '../../configs');
+await fastify.register(fastifyStatic, {
+    root: configsPath,
+    prefix: '/configs/',
+    decorateReply: false
+});
+
 // 静态文件服务 - 生产环境下服务前端构建产物
 const clientDistPath = path.join(__dirname, '../../client/dist');
 await fastify.register(fastifyStatic, {
@@ -52,6 +62,7 @@ await fastify.register(fastifyStatic, {
 // 注册路由
 await fastify.register(familyMembersRoutes);
 await fastify.register(knowledgeRoutes);
+await fastify.register(diaryRoutes);
 
 // API 路由
 fastify.get('/api/health', async () => {
@@ -70,6 +81,9 @@ const start = async () => {
     try {
         // 初始化数据库
         await initDatabase();
+
+        // 初始化知识库索引
+        initializeIndex();
 
         await fastify.listen({ port: 3000, host: '0.0.0.0' });
         console.log('🚀 服务器已启动: http://localhost:3000');

@@ -35,7 +35,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
     const [currentIndex, setCurrentIndex] = useState(0)
     const [revealStage, setRevealStage] = useState<RevealStage>(1)
     const [updating, setUpdating] = useState(false)
-    const [keywordFontSize, setKeywordFontSize] = useState(400)
+    const [keywordSizes, setKeywordSizes] = useState({ step1: 120, step2: 80, step3: 60 })
 
     const audioRefs = useRef<HTMLAudioElement[]>([])
     const videoRefs = useRef<HTMLVideoElement[]>([])
@@ -47,8 +47,12 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
         fetch('/configs/config.json')
             .then(res => res.json())
             .then(config => {
-                if (config.knowledgeBaseConfig?.keywordDisplayHeight) {
-                    setKeywordFontSize(config.knowledgeBaseConfig.keywordDisplayHeight)
+                if (config.knowledgeBaseConfig) {
+                    setKeywordSizes({
+                        step1: config.knowledgeBaseConfig.keywordSizeStep1 || 120,
+                        step2: config.knowledgeBaseConfig.keywordSizeStep2 || 80,
+                        step3: config.knowledgeBaseConfig.keywordSizeStep3 || 60
+                    })
                 }
             })
             .catch(() => { })
@@ -96,16 +100,14 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
     }, [revealStage])
 
     const goNext = useCallback(() => {
-        if (currentIndex < items.length - 1) {
-            setCurrentIndex(currentIndex + 1)
-        }
-    }, [currentIndex, items.length])
+        // 循环遍历：到最后一个后从第一个开始
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % items.length)
+    }, [items.length])
 
     const goPrev = useCallback(() => {
-        if (currentIndex > 0) {
-            setCurrentIndex(currentIndex - 1)
-        }
-    }, [currentIndex])
+        // 循环遍历：到第一个后从最后一个开始
+        setCurrentIndex((prevIndex) => (prevIndex - 1 + items.length) % items.length)
+    }, [items.length])
 
     const handleAnswer = useCallback(async (isCorrect: boolean) => {
         if (updating) return
@@ -125,11 +127,15 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
         switch (e.key) {
             case 'ArrowLeft':
                 e.preventDefault()
-                handleAnswer(false)
+                goPrev() // 左方向键：上一个知识点
                 break
             case 'ArrowRight':
                 e.preventDefault()
-                handleAnswer(true)
+                goNext() // 右方向键：下一个知识点
+                break
+            case 'Enter':
+                e.preventDefault()
+                handleAnswer(true) // 回车键：对了
                 break
             case ' ':
                 e.preventDefault()
@@ -144,7 +150,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                 onClose()
                 break
         }
-    }, [revealStage, advanceStage, goNext, handleAnswer, onClose])
+    }, [revealStage, advanceStage, goNext, goPrev, handleAnswer, onClose])
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown)
@@ -162,9 +168,15 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
     const audioPaths = parsePathArray(currentItem?.audio_paths)
     const videoPaths = parsePathArray(currentItem?.video_paths)
 
-    // 计算字体大小：基于配置的高度值，转换为合适的字体大小
-    // keywordFontSize 配置值作为关键字区域高度，字体大小约为高度的1/3
-    const calculatedFontSize = Math.max(48, Math.min(keywordFontSize / 3, 200))
+    // 根据当前阶段获取关键字字体大小
+    const getCurrentKeywordSize = () => {
+        switch (revealStage) {
+            case 1: return keywordSizes.step1
+            case 2: return keywordSizes.step2
+            case 3: return keywordSizes.step3
+            default: return keywordSizes.step1
+        }
+    }
 
     if (!currentItem) {
         return (
@@ -230,8 +242,8 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                                 {currentItem.keywords.split(/[,，]/).filter(kw => kw.trim()).map((kw, i) => (
                                     <span
                                         key={i}
-                                        className="font-bold text-white"
-                                        style={{ fontSize: `${calculatedFontSize}px` }}
+                                        className="font-bold text-white transition-all duration-300"
+                                        style={{ fontSize: `${getCurrentKeywordSize()}px` }}
                                     >
                                         {kw.trim()}
                                     </span>
@@ -239,8 +251,8 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                             </div>
                         ) : (
                             <span
-                                className="text-white/50 font-bold"
-                                style={{ fontSize: `${calculatedFontSize}px` }}
+                                className="text-white/50 font-bold transition-all duration-300"
+                                style={{ fontSize: `${getCurrentKeywordSize()}px` }}
                             >
                                 {currentItem.name}
                             </span>
@@ -427,10 +439,10 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
             <div className="p-4 md:p-6 flex items-center justify-center gap-4 md:gap-8 shrink-0 bg-black/20">
                 <button
                     onClick={(e) => { e.stopPropagation(); goPrev() }}
-                    disabled={currentIndex === 0}
-                    className="px-4 md:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="px-4 md:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition flex items-center gap-2"
                 >
                     <ChevronLeft size={24} />
+                    <span className="hidden md:inline text-sm">(←)</span>
                 </button>
 
                 <button
@@ -439,7 +451,7 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                     className="px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-2xl transition shadow-lg flex items-center gap-2 font-bold text-base md:text-lg disabled:opacity-50"
                 >
                     <XCircle size={24} />
-                    错了 (←)
+                    继续努力
                 </button>
 
                 <button
@@ -448,21 +460,21 @@ export default function StudyModal({ sectionName, items, onClose, onStudyUpdate 
                     className="px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-2xl transition shadow-lg flex items-center gap-2 font-bold text-base md:text-lg disabled:opacity-50"
                 >
                     <Check size={24} />
-                    对了 (→)
+                    对了 (↵)
                 </button>
 
                 <button
                     onClick={(e) => { e.stopPropagation(); goNext() }}
-                    disabled={currentIndex >= items.length - 1}
-                    className="px-4 md:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="px-4 md:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition flex items-center gap-2"
                 >
+                    <span className="hidden md:inline text-sm">(→)</span>
                     <ChevronRight size={24} />
                 </button>
             </div>
 
             {/* 键盘提示 */}
             <div className="text-center pb-3 text-white/40 text-sm shrink-0">
-                键盘操作：← 错误 | → 正确 | 空格 {revealStage < 3 ? '查看更多' : '下一个'} | ESC 退出
+                键盘操作：← 上一个 | → 下一个 | 回车 对了 | 空格 {revealStage < 3 ? '查看更多' : '下一个'} | ESC 退出
             </div>
 
             {/* 动画样式 */}

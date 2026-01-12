@@ -4,11 +4,53 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { compressImageBuffer, isImageFile } from '../utils/imageCompress.js';
 import * as KnowledgeManager from '../utils/knowledgeFileManager.js';
+import * as KnowledgeIndexManager from '../utils/knowledgeIndexManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default async function knowledgeRoutes(fastify: FastifyInstance) {
+
+    // ============ 索引管理 ============
+
+    // 刷新知识库索引
+    fastify.post('/api/knowledge/refresh-index', async (request, reply) => {
+        try {
+            const index = KnowledgeIndexManager.refreshIndex();
+            return {
+                success: true,
+                data: {
+                    generated_at: index.generated_at,
+                    categories_count: index.categories.length,
+                    sections_count: index.sections.length,
+                    subsections_count: index.subsections.length,
+                    total_items: index.categories.reduce((sum, c) => sum + c.item_count, 0)
+                }
+            };
+        } catch (error) {
+            return reply.status(500).send({ success: false, error: String(error) });
+        }
+    });
+
+    // 获取索引信息
+    fastify.get('/api/knowledge/index-info', async (request, reply) => {
+        try {
+            const index = KnowledgeIndexManager.getIndex();
+            return {
+                success: true,
+                data: {
+                    version: index.version,
+                    generated_at: index.generated_at,
+                    categories_count: index.categories.length,
+                    sections_count: index.sections.length,
+                    subsections_count: index.subsections.length,
+                    total_items: index.categories.reduce((sum, c) => sum + c.item_count, 0)
+                }
+            };
+        } catch (error) {
+            return reply.status(500).send({ success: false, error: String(error) });
+        }
+    });
 
     // ============ 知识库（一级板块）CRUD ============
 
