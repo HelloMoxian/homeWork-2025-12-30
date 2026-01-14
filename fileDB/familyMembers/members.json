@@ -1,0 +1,25 @@
+{
+  "members": [
+    {
+      "id": "1",
+      "nickname": "木木",
+      "name": "张木木",
+      "birthday_text": "2020年5月15日",
+      "gender": "男",
+      "sort_weight": 0,
+      "created_at": "2026-01-12T08:48:11.023Z",
+      "updated_at": "2026-01-12T08:49:17.340Z",
+      "zodiac_sign": "金牛座"
+    },
+    {
+      "id": "2",
+      "nickname": "妈妈",
+      "name": "李小美",
+      "gender": "女",
+      "sort_weight": 0,
+      "created_at": "2026-01-12T08:49:06.050Z",
+      "updated_at": "2026-01-12T08:49:06.050Z"
+    }
+  ],
+  "last_member_id": 2
+}

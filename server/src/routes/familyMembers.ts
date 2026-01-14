@@ -1,16 +1,15 @@
 import { FastifyInstance } from 'fastify';
-import { getDatabase } from '../db/index.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { compressImageBuffer, isImageFile } from '../utils/imageCompress.js';
+import * as FamilyMembersManager from '../utils/familyMembersFileManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 类型定义
-interface FamilyMember {
-    id?: number;
+interface FamilyMemberInput {
     nickname: string;
     name?: string;
     birthday_text?: string;
@@ -22,8 +21,7 @@ interface FamilyMember {
     sort_weight?: number;
 }
 
-interface AttributeDefinition {
-    id?: number;
+interface AttributeDefinitionInput {
     attribute_name: string;
     attribute_type: 'integer' | 'string' | 'decimal' | 'checkbox' | 'image';
     options?: string;
@@ -31,10 +29,9 @@ interface AttributeDefinition {
     sort_weight?: number;
 }
 
-interface AttributeValue {
-    id?: number;
-    member_id: number;
-    attribute_id: number;
+interface AttributeValueInput {
+    member_id: string;
+    attribute_id: string;
     value_text?: string;
     value_number?: number;
     value_boolean?: number;
@@ -42,16 +39,13 @@ interface AttributeValue {
 }
 
 export default async function familyMembersRoutes(fastify: FastifyInstance) {
-    const db = getDatabase();
 
     // ============ 家庭成员 CRUD ============
 
     // 获取所有家庭成员（按权重排序）
     fastify.get('/api/family-members', async (request, reply) => {
         try {
-            const members = db.prepare(
-                'SELECT * FROM family_members ORDER BY sort_weight ASC, id ASC'
-            ).all();
+            const members = FamilyMembersManager.getAllMembers();
             return { success: true, data: members };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -61,9 +55,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 获取单个家庭成员
     fastify.get<{ Params: { id: string } }>('/api/family-members/:id', async (request, reply) => {
         try {
-            const member = db.prepare(
-                'SELECT * FROM family_members WHERE id = ?'
-            ).get(request.params.id);
+            const member = FamilyMembersManager.getMemberById(request.params.id);
             if (!member) {
                 return reply.status(404).send({ success: false, error: '成员不存在' });
             }
@@ -74,43 +66,60 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     });
 
     // 创建家庭成员
-    fastify.post<{ Body: FamilyMember }>('/api/family-members', async (request, reply) => {
+    fastify.post<{ Body: FamilyMemberInput }>('/api/family-members', async (request, reply) => {
         try {
             const { nickname, name, birthday_text, birthday_date, zodiac_sign, chinese_zodiac, avatar_path, gender, sort_weight } = request.body;
 
             // 检查昵称是否重复
-            const existing = db.prepare('SELECT id FROM family_members WHERE nickname = ?').get(nickname);
+            const existing = FamilyMembersManager.getMemberByNickname(nickname);
             if (existing) {
                 return reply.status(400).send({ success: false, error: '昵称已存在' });
             }
 
-            const result = db.prepare(`
-        INSERT INTO family_members (nickname, name, birthday_text, birthday_date, zodiac_sign, chinese_zodiac, avatar_path, gender, sort_weight)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(nickname, name || null, birthday_text || null, birthday_date || null, zodiac_sign || null, chinese_zodiac || null, avatar_path || null, gender || null, sort_weight || 0);
+            const member = FamilyMembersManager.createMember({
+                nickname,
+                name,
+                birthday_text,
+                birthday_date,
+                zodiac_sign,
+                chinese_zodiac,
+                avatar_path,
+                gender,
+                sort_weight
+            });
 
-            return { success: true, data: { id: result.lastInsertRowid } };
+            return { success: true, data: { id: member.id } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
         }
     });
 
     // 更新家庭成员
-    fastify.put<{ Params: { id: string }; Body: FamilyMember }>('/api/family-members/:id', async (request, reply) => {
+    fastify.put<{ Params: { id: string }; Body: FamilyMemberInput }>('/api/family-members/:id', async (request, reply) => {
         try {
             const { nickname, name, birthday_text, birthday_date, zodiac_sign, chinese_zodiac, avatar_path, gender, sort_weight } = request.body;
 
             // 检查昵称是否与其他成员重复
-            const existing = db.prepare('SELECT id FROM family_members WHERE nickname = ? AND id != ?').get(nickname, request.params.id);
-            if (existing) {
+            const existing = FamilyMembersManager.getMemberByNickname(nickname);
+            if (existing && existing.id !== request.params.id) {
                 return reply.status(400).send({ success: false, error: '昵称已存在' });
             }
 
-            db.prepare(`
-        UPDATE family_members 
-        SET nickname = ?, name = ?, birthday_text = ?, birthday_date = ?, zodiac_sign = ?, chinese_zodiac = ?, avatar_path = ?, gender = ?, sort_weight = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(nickname, name || null, birthday_text || null, birthday_date || null, zodiac_sign || null, chinese_zodiac || null, avatar_path || null, gender || null, sort_weight || 0, request.params.id);
+            const success = FamilyMembersManager.updateMember(request.params.id, {
+                nickname,
+                name,
+                birthday_text,
+                birthday_date,
+                zodiac_sign,
+                chinese_zodiac,
+                avatar_path,
+                gender,
+                sort_weight: sort_weight || 0
+            });
+
+            if (!success) {
+                return reply.status(404).send({ success: false, error: '成员不存在' });
+            }
 
             return { success: true };
         } catch (error) {
@@ -121,7 +130,10 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 删除家庭成员
     fastify.delete<{ Params: { id: string } }>('/api/family-members/:id', async (request, reply) => {
         try {
-            db.prepare('DELETE FROM family_members WHERE id = ?').run(request.params.id);
+            const success = FamilyMembersManager.deleteMember(request.params.id);
+            if (!success) {
+                return reply.status(404).send({ success: false, error: '成员不存在' });
+            }
             return { success: true };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -133,9 +145,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 获取所有属性定义（按权重排序）
     fastify.get('/api/member-attributes', async (request, reply) => {
         try {
-            const attributes = db.prepare(
-                'SELECT * FROM member_attribute_definitions ORDER BY sort_weight ASC, id ASC'
-            ).all();
+            const attributes = FamilyMembersManager.getAllAttributeDefinitions();
             return { success: true, data: attributes };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -143,43 +153,52 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     });
 
     // 创建属性定义
-    fastify.post<{ Body: AttributeDefinition }>('/api/member-attributes', async (request, reply) => {
+    fastify.post<{ Body: AttributeDefinitionInput }>('/api/member-attributes', async (request, reply) => {
         try {
             const { attribute_name, attribute_type, options, attribute_logo, sort_weight } = request.body;
 
             // 检查属性名是否重复
-            const existing = db.prepare('SELECT id FROM member_attribute_definitions WHERE attribute_name = ?').get(attribute_name);
+            const existing = FamilyMembersManager.getAttributeDefinitionByName(attribute_name);
             if (existing) {
                 return reply.status(400).send({ success: false, error: '属性名已存在' });
             }
 
-            const result = db.prepare(`
-        INSERT INTO member_attribute_definitions (attribute_name, attribute_type, options, attribute_logo, sort_weight)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(attribute_name, attribute_type, options || null, attribute_logo || null, sort_weight || 0);
+            const definition = FamilyMembersManager.createAttributeDefinition({
+                attribute_name,
+                attribute_type,
+                options,
+                attribute_logo,
+                sort_weight
+            });
 
-            return { success: true, data: { id: result.lastInsertRowid } };
+            return { success: true, data: { id: definition.id } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
         }
     });
 
     // 更新属性定义
-    fastify.put<{ Params: { id: string }; Body: AttributeDefinition }>('/api/member-attributes/:id', async (request, reply) => {
+    fastify.put<{ Params: { id: string }; Body: AttributeDefinitionInput }>('/api/member-attributes/:id', async (request, reply) => {
         try {
             const { attribute_name, attribute_type, options, attribute_logo, sort_weight } = request.body;
 
             // 检查属性名是否与其他属性重复
-            const existing = db.prepare('SELECT id FROM member_attribute_definitions WHERE attribute_name = ? AND id != ?').get(attribute_name, request.params.id);
-            if (existing) {
+            const existing = FamilyMembersManager.getAttributeDefinitionByName(attribute_name);
+            if (existing && existing.id !== request.params.id) {
                 return reply.status(400).send({ success: false, error: '属性名已存在' });
             }
 
-            db.prepare(`
-        UPDATE member_attribute_definitions 
-        SET attribute_name = ?, attribute_type = ?, options = ?, attribute_logo = ?, sort_weight = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(attribute_name, attribute_type, options || null, attribute_logo || null, sort_weight || 0, request.params.id);
+            const success = FamilyMembersManager.updateAttributeDefinition(request.params.id, {
+                attribute_name,
+                attribute_type,
+                options,
+                attribute_logo,
+                sort_weight: sort_weight || 0
+            });
+
+            if (!success) {
+                return reply.status(404).send({ success: false, error: '属性不存在' });
+            }
 
             return { success: true };
         } catch (error) {
@@ -190,7 +209,10 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 删除属性定义
     fastify.delete<{ Params: { id: string } }>('/api/member-attributes/:id', async (request, reply) => {
         try {
-            db.prepare('DELETE FROM member_attribute_definitions WHERE id = ?').run(request.params.id);
+            const success = FamilyMembersManager.deleteAttributeDefinition(request.params.id);
+            if (!success) {
+                return reply.status(404).send({ success: false, error: '属性不存在' });
+            }
             return { success: true };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -202,13 +224,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 获取指定成员的所有属性值
     fastify.get<{ Params: { memberId: string } }>('/api/family-members/:memberId/attributes', async (request, reply) => {
         try {
-            const values = db.prepare(`
-        SELECT mav.*, mad.attribute_name, mad.attribute_type, mad.attribute_logo
-        FROM member_attribute_values mav
-        JOIN member_attribute_definitions mad ON mav.attribute_id = mad.id
-        WHERE mav.member_id = ?
-        ORDER BY mad.sort_weight ASC, mad.id ASC
-      `).all(request.params.memberId);
+            const values = FamilyMembersManager.getAttributeValuesByMember(request.params.memberId);
             return { success: true, data: values };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -218,12 +234,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 获取所有成员的所有属性值（用于表格展示）
     fastify.get('/api/member-attribute-values', async (request, reply) => {
         try {
-            const values = db.prepare(`
-        SELECT mav.*, mad.attribute_name, mad.attribute_type, fm.nickname
-        FROM member_attribute_values mav
-        JOIN member_attribute_definitions mad ON mav.attribute_id = mad.id
-        JOIN family_members fm ON mav.member_id = fm.id
-      `).all();
+            const values = FamilyMembersManager.getAllAttributeValuesWithDetails();
             return { success: true, data: values };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -231,29 +242,18 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     });
 
     // 设置或更新属性值
-    fastify.post<{ Body: AttributeValue }>('/api/member-attribute-values', async (request, reply) => {
+    fastify.post<{ Body: AttributeValueInput }>('/api/member-attribute-values', async (request, reply) => {
         try {
             const { member_id, attribute_id, value_text, value_number, value_boolean, value_image } = request.body;
 
-            // 检查是否已存在
-            const existing = db.prepare(
-                'SELECT id FROM member_attribute_values WHERE member_id = ? AND attribute_id = ?'
-            ).get(member_id, attribute_id);
-
-            if (existing) {
-                // 更新
-                db.prepare(`
-          UPDATE member_attribute_values 
-          SET value_text = ?, value_number = ?, value_boolean = ?, value_image = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE member_id = ? AND attribute_id = ?
-        `).run(value_text || null, value_number || null, value_boolean || null, value_image || null, member_id, attribute_id);
-            } else {
-                // 插入
-                db.prepare(`
-          INSERT INTO member_attribute_values (member_id, attribute_id, value_text, value_number, value_boolean, value_image)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(member_id, attribute_id, value_text || null, value_number || null, value_boolean || null, value_image || null);
-            }
+            FamilyMembersManager.setAttributeValue({
+                member_id,
+                attribute_id,
+                value_text,
+                value_number,
+                value_boolean,
+                value_image
+            });
 
             return { success: true };
         } catch (error) {
@@ -264,7 +264,10 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
     // 删除属性值
     fastify.delete<{ Params: { id: string } }>('/api/member-attribute-values/:id', async (request, reply) => {
         try {
-            db.prepare('DELETE FROM member_attribute_values WHERE id = ?').run(request.params.id);
+            const success = FamilyMembersManager.deleteAttributeValue(request.params.id);
+            if (!success) {
+                return reply.status(404).send({ success: false, error: '属性值不存在' });
+            }
             return { success: true };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });

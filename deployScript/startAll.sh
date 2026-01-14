@@ -4,13 +4,13 @@
 # 家用小工具 - 服务启动脚本
 # 功能：关闭现有服务、构建并启动前后端、打印访问链接、在浏览器中打开主页
 # 创建时间: 2025-12-30
+# 更新时间: 2026-01-12 - 移除SQLite相关逻辑，改用文件存储
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_DIR/logs"
-DATA_DIR="$PROJECT_DIR/data"
-DB_PATH="$DATA_DIR/homework.db"
+FILE_DB_DIR="$PROJECT_DIR/fileDB"
 
 # 服务配置
 SERVER_PORT=3000
@@ -62,12 +62,6 @@ check_environment() {
     
     if [ ! -d "$PROJECT_DIR/client/node_modules" ]; then
         print_warning "客户端依赖未安装"
-        need_init=true
-    fi
-    
-    # 检查数据库是否存在
-    if [ ! -f "$DB_PATH" ]; then
-        print_warning "数据库未初始化"
         need_init=true
     fi
     
@@ -164,6 +158,9 @@ start_services() {
     # 确保日志目录存在
     mkdir -p "$LOG_DIR"
     
+    # 确保文件数据库目录存在
+    mkdir -p "$FILE_DB_DIR"
+    
     # 启动服务端（后台运行）
     cd "$PROJECT_DIR/server"
     print_step "启动后端服务 (端口: $SERVER_PORT)..."
@@ -243,6 +240,7 @@ show_success_message() {
     echo -e "${GREEN}║${NC}     • 服务端口: ${SERVER_PORT}                                       ${GREEN}║${NC}"
     echo -e "${GREEN}║${NC}     • 进程 PID: ${server_pid}                                        ${GREEN}║${NC}"
     echo -e "${GREEN}║${NC}     • 日志文件: logs/server.log                            ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}     • 数据存储: fileDB/ (JSON文件)                         ${GREEN}║${NC}"
     echo -e "${GREEN}║${NC}                                                            ${GREEN}║${NC}"
     echo -e "${GREEN}║${NC}  ${BOLD}🛠️  常用命令:${NC}                                              ${GREEN}║${NC}"
     echo -e "${GREEN}║${NC}     • 查看日志: tail -f logs/server.log                    ${GREEN}║${NC}"
@@ -260,7 +258,8 @@ main() {
     echo ""
     echo -e "${MAGENTA}╔════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${MAGENTA}║          ${BOLD}🏠 木木的家 - 服务启动脚本${NC}${MAGENTA}                       ║${NC}"
-    echo -e "${MAGENTA}║                    版本: 1.0.0                             ║${NC}"
+    echo -e "${MAGENTA}║                    版本: 2.0.0                             ║${NC}"
+    echo -e "${MAGENTA}║             (文件存储版 - 无需数据库)                       ║${NC}"
     echo -e "${MAGENTA}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo "项目目录: $PROJECT_DIR"

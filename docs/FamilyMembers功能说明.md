@@ -2,67 +2,88 @@
 
 ## 功能概述
 
-本文档描述了"家庭成员"功能模块的完整实现，包括前端界面、后端API、数据库设计等。
+本文档描述了"家庭成员"功能模块的完整实现，包括前端界面、后端API、数据存储设计等。
 
-## 1. 数据库设计
+## 1. 数据存储设计
 
-### 1.1 家庭成员表 (family_members)
+### 1.1 存储方式
 
-存储家庭成员的基本信息。
+家庭成员功能使用 JSON 文件存储，所有数据位于 `fileDB/familyMembers/` 目录下：
 
-```sql
-CREATE TABLE family_members (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  nickname TEXT UNIQUE NOT NULL,              -- 昵称（必选，唯一）
-  name TEXT,                                  -- 姓名
-  birthday_text TEXT,                         -- 生日文本（字符串格式）
-  birthday_date DATE,                         -- 生日日期（时间戳年月日）
-  zodiac_sign TEXT,                           -- 星座
-  chinese_zodiac TEXT,                        -- 属相
-  avatar_path TEXT,                           -- 头像路径
-  gender TEXT,                                -- 性别
-  sort_weight INTEGER DEFAULT 0,              -- 排序权重
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+- `members.json` - 成员基本信息
+- `attributeDefinitions.json` - 属性定义
+- `attributeValues.json` - 属性值
+
+### 1.2 成员数据结构 (members.json)
+
+```json
+{
+  "members": [
+    {
+      "id": "1",
+      "nickname": "木木",           // 昵称（必选，唯一）
+      "name": "张木木",             // 姓名
+      "birthday_text": "2020年5月", // 生日文本
+      "birthday_date": "2020-05-15", // 生日日期
+      "zodiac_sign": "金牛座",      // 星座
+      "chinese_zodiac": "鼠",       // 属相
+      "avatar_path": "uploadFiles/members/avatars/xxx.jpg", // 头像路径
+      "gender": "男",               // 性别
+      "sort_weight": 0,             // 排序权重
+      "created_at": "2026-01-12T00:00:00.000Z",
+      "updated_at": "2026-01-12T00:00:00.000Z"
+    }
+  ],
+  "last_member_id": 1
+}
 ```
 
-### 1.2 属性定义表 (member_attribute_definitions)
+### 1.3 属性定义数据结构 (attributeDefinitions.json)
 
-定义动态属性的结构。
-
-```sql
-CREATE TABLE member_attribute_definitions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  attribute_name TEXT UNIQUE NOT NULL,        -- 属性名（必选）
-  attribute_type TEXT NOT NULL,               -- 属性类型：integer, string, decimal, checkbox, image
-  options TEXT,                               -- 可选项（JSON格式）
-  attribute_logo TEXT,                        -- 属性Logo路径
-  sort_weight INTEGER DEFAULT 0,              -- 排序权重
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+```json
+{
+  "definitions": [
+    {
+      "id": "1",
+      "attribute_name": "身高",                    // 属性名（必选）
+      "attribute_type": "decimal",                 // 属性类型
+      "options": null,                             // 可选项（JSON字符串）
+      "attribute_logo": "uploadFiles/members/logos/xxx.png", // 属性图标
+      "sort_weight": 0,                            // 排序权重
+      "created_at": "2026-01-12T00:00:00.000Z",
+      "updated_at": "2026-01-12T00:00:00.000Z"
+    }
+  ],
+  "last_definition_id": 1
+}
 ```
 
-### 1.3 属性值表 (member_attribute_values)
+**属性类型说明：**
+- `integer` - 整数
+- `string` - 字符串
+- `decimal` - 小数
+- `checkbox` - 复选框
+- `image` - 图片
 
-存储成员的动态属性值。
+### 1.4 属性值数据结构 (attributeValues.json)
 
-```sql
-CREATE TABLE member_attribute_values (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  member_id INTEGER NOT NULL,                 -- 成员ID
-  attribute_id INTEGER NOT NULL,              -- 属性定义ID
-  value_text TEXT,                            -- 文本/字符串值
-  value_number REAL,                          -- 数字值（整数或小数）
-  value_boolean INTEGER,                      -- 布尔值（复选框）
-  value_image TEXT,                           -- 图片路径
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE CASCADE,
-  FOREIGN KEY (attribute_id) REFERENCES member_attribute_definitions(id) ON DELETE CASCADE,
-  UNIQUE(member_id, attribute_id)
-);
+```json
+{
+  "values": [
+    {
+      "id": "1",
+      "member_id": "1",        // 成员ID
+      "attribute_id": "1",     // 属性定义ID
+      "value_text": null,      // 文本值
+      "value_number": 110.5,   // 数字值
+      "value_boolean": null,   // 布尔值
+      "value_image": null,     // 图片路径
+      "created_at": "2026-01-12T00:00:00.000Z",
+      "updated_at": "2026-01-12T00:00:00.000Z"
+    }
+  ],
+  "last_value_id": 1
+}
 ```
 
 ## 2. 后端API接口
@@ -91,207 +112,93 @@ CREATE TABLE member_attribute_values (
 
 ### 2.4 文件上传接口
 
-- `POST /api/upload/member-file` - 上传成员相关文件（头像、属性图片等）
+- `POST /api/upload/avatar` - 上传成员头像
+- `POST /api/upload/logo` - 上传属性图标
+- `POST /api/upload/attribute` - 上传属性值图片
 
-## 3. 前端组件
+## 3. 后端实现
 
-### 3.1 主页面组件 (FamilyMembersPage.tsx)
+### 3.1 文件管理器
+
+文件管理器位于 `server/src/utils/familyMembersFileManager.ts`，提供以下功能：
+
+**成员管理：**
+- `getAllMembers()` - 获取所有成员
+- `getMemberById(id)` - 按ID获取成员
+- `getMemberByNickname(nickname)` - 按昵称获取成员
+- `createMember(data)` - 创建成员
+- `updateMember(id, data)` - 更新成员
+- `deleteMember(id)` - 删除成员
+
+**属性定义管理：**
+- `getAllAttributeDefinitions()` - 获取所有属性定义
+- `getAttributeDefinitionById(id)` - 按ID获取属性定义
+- `getAttributeDefinitionByName(name)` - 按名称获取属性定义
+- `createAttributeDefinition(data)` - 创建属性定义
+- `updateAttributeDefinition(id, data)` - 更新属性定义
+- `deleteAttributeDefinition(id)` - 删除属性定义
+
+**属性值管理：**
+- `getAllAttributeValues()` - 获取所有属性值
+- `getAttributeValuesByMember(memberId)` - 获取成员的属性值
+- `getAllAttributeValuesWithDetails()` - 获取所有属性值（含详情）
+- `setAttributeValue(data)` - 设置或更新属性值
+- `deleteAttributeValue(id)` - 删除属性值
+
+### 3.2 路由文件
+
+路由文件位于 `server/src/routes/familyMembers.ts`，注册所有 API 端点。
+
+## 4. 前端组件
+
+### 4.1 主页面组件 (FamilyMembersPage.tsx)
 
 - 显示"添加成员"和"添加属性"按钮
-- 展示家人信息表格
-- 固定表头（成员昵称行）
-- 双击单元格进入编辑模式
+- 表格展示所有成员及其属性
+- 支持内联编辑属性值
 
-### 3.2 添加成员对话框 (AddMemberDialog.tsx)
+### 4.2 添加成员对话框 (AddMemberDialog.tsx)
 
-**必填字段：**
-- 昵称（不可重复）
+- 输入昵称（必选）
+- 输入姓名、生日、性别等信息
+- 上传头像
 
-**可选字段：**
-- 姓名
-- 性别（下拉选择：男/女）
-- 生日文本（字符串）
-- 生日日期（日期选择器）
-- 星座（下拉选择）
-- 属相（下拉选择）
-- 头像（图片上传）
-- 排序权重（数字）
+### 4.3 添加属性对话框 (AddAttributeDialog.tsx)
 
-### 3.3 添加属性对话框 (AddAttributeDialog.tsx)
+- 输入属性名（必选）
+- 选择属性类型
+- 上传属性图标
 
-**必填字段：**
-- 属性名（不可重复）
-- 属性类型（下拉选择：字符串/整数/小数/复选框/图片）
+### 4.4 单元格编辑器 (CellEditor.tsx)
 
-**可选字段：**
-- 可选项（用于下拉选择）
-- 属性Logo（图片上传）
-- 排序权重（数字）
+- 根据属性类型展示不同的编辑器
+- 支持实时保存
 
-### 3.4 通用单元格编辑器 (CellEditor.tsx)
+## 5. 数据迁移
 
-支持多种数据类型的编辑：
-
-1. **字符串编辑器**
-   - 多行文本框
-   - 支持 Enter 保存，Escape 取消
-
-2. **整数/小数编辑器**
-   - 数字输入框
-   - 自动验证数据格式
-
-3. **复选框编辑器**
-   - 可视化复选框
-   - 布尔值切换
-
-4. **图片编辑器**
-   - 图片预览
-   - 上传新图片
-   - 删除已有图片
-   - 支持拖拽上传
-
-## 4. 界面特性
-
-### 4.1 表格布局
-
-```
-+----------+--------+--------+--------+
-| 属性     | 爸爸   | 妈妈   | 木木   |  <- 固定表头
-+----------+--------+--------+--------+
-| 头像     | [图片] | [图片] | [图片] |
-| 姓名     | 张三   | 李四   | 王五   |
-| 性别     | 男     | 女     | 女     |
-| ...      | ...    | ...    | ...    |
-+----------+--------+--------+--------+
-```
-
-### 4.2 排序规则
-
-- 横轴：成员按 `sort_weight` 字段排序（升序）
-- 纵轴：
-  1. 固定属性（头像、姓名、性别、生日等）
-  2. 动态属性按 `sort_weight` 字段排序（升序）
-
-### 4.3 交互特性
-
-- **双击编辑**：双击任意单元格进入编辑模式
-- **固定表头**：滚动时，成员昵称行保持在顶部可见
-- **响应式设计**：按钮大小、图片尺寸符合整体风格
-- **渐变色**：
-  - 添加成员按钮：粉红到玫瑰红渐变
-  - 添加属性按钮：蓝色到靛蓝渐变
-
-## 5. 文件存储
-
-### 5.1 目录结构
-
-```
-uploadFiles/members/
-├── avatars/        # 成员头像
-├── attributes/     # 属性值图片
-└── logos/          # 属性Logo
-```
-
-### 5.2 文件命名
-
-格式：`{timestamp}_{randomString}{extension}`
-
-示例：`1704067200000_a3k9m2.jpg`
-
-### 5.3 访问路径
-
-上传后的文件通过以下URL访问：
-`http://localhost:3000/uploadFiles/members/{filename}`
-
-## 6. 配置文件
-
-在 `configs/config.json` 中添加了成员配置：
-
-```json
-{
-  "membersConfig": {
-    "avatarSize": {
-      "width": 80,
-      "height": 80
-    },
-    "attributeImageSize": {
-      "width": 120,
-      "height": 120
-    },
-    "uploadPath": "uploadFiles/members"
-  }
-}
-```
-
-## 7. 使用说明
-
-### 7.1 启动应用
+### 5.1 备份数据
 
 ```bash
-# 根目录下启动
-npm run dev
-
-# 或分别启动前后端
-cd server && npm run dev
-cd client && npm run dev
+cp -r fileDB/familyMembers/ backup/familyMembers/
+cp -r uploadFiles/members/ backup/members/
 ```
 
-### 7.2 访问地址
+### 5.2 还原数据
 
-- 生产环境：http://localhost:3000
-- 开发环境：http://localhost:5173（前端）+ http://localhost:3000（后端）
+```bash
+cp -r backup/familyMembers/ fileDB/familyMembers/
+cp -r backup/members/ uploadFiles/members/
+```
 
-### 7.3 使用流程
+## 6. 与旧版本的差异
 
-1. 点击"添加成员"按钮，填写成员信息
-2. 点击"添加属性"按钮，定义动态属性
-3. 双击表格单元格，编辑属性值
-4. 属性值自动保存到数据库
+### 旧版本 (SQLite)
+- 使用 SQLite 数据库存储
+- 需要 better-sqlite3 依赖
+- 数据库迁移较复杂
 
-## 8. 技术栈
-
-### 8.1 前端
-
-- React + TypeScript
-- Vite
-- TailwindCSS
-- Lucide Icons
-
-### 8.2 后端
-
-- Fastify
-- TypeScript
-- Better-SQLite3
-- @fastify/multipart（文件上传）
-- @fastify/static（静态文件服务）
-
-## 9. 注意事项
-
-1. **数据验证**
-   - 昵称必填且唯一
-   - 属性名必填且唯一
-   - 文件大小限制10MB
-
-2. **性能优化**
-   - 使用索引优化查询
-   - 按需加载数据
-   - 图片懒加载
-
-3. **安全性**
-   - 文件类型验证
-   - SQL注入防护
-   - XSS防护
-
-## 10. 后续优化建议
-
-1. 添加成员删除功能
-2. 添加属性编辑和删除功能
-3. 支持批量导入导出
-4. 添加成员分组功能
-5. 支持属性值历史记录
-6. 添加图片裁剪功能
-7. 支持更多属性类型（日期、时间等）
-
----
-
-**实现完成日期：** 2025年12月31日
+### 新版本 (JSON 文件)
+- 使用 JSON 文件存储
+- 无需数据库依赖
+- 数据迁移只需复制文件
+- 更容易进行 Git 版本控制

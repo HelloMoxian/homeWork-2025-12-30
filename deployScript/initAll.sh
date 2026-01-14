@@ -2,8 +2,9 @@
 
 # =============================================================================
 # 家用小工具 - 环境初始化脚本
-# 功能：初始化依赖环境、Node 环境、数据库安装、数据表初始化（智能按需初始化）
+# 功能：初始化依赖环境、Node 环境、目录结构（无需数据库）
 # 创建时间: 2025-12-30
+# 更新时间: 2026-01-12 - 移除SQLite相关逻辑，改用文件存储
 # =============================================================================
 
 set -e  # 遇到错误立即退出
@@ -11,11 +12,7 @@ set -e  # 遇到错误立即退出
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$PROJECT_DIR/logs"
-DATA_DIR="$PROJECT_DIR/data"
-DB_PATH="$DATA_DIR/homework.db"
-DB_INIT_SQL="$PROJECT_DIR/dbInit/db_init_all.sql"
-DB_UPDATE_DIR="$PROJECT_DIR/dbInit/update_step"
-BACKUP_DIR="$PROJECT_DIR/dbBackup"
+FILE_DB_DIR="$PROJECT_DIR/fileDB"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -79,14 +76,6 @@ check_system_dependencies() {
     else
         print_error "npm 未安装"
         missing_deps+=("npm")
-    fi
-    
-    # 检查 SQLite3 (可选，用于命令行操作)
-    if command -v sqlite3 &> /dev/null; then
-        local sqlite_version=$(sqlite3 --version | awk '{print $1}')
-        print_success "SQLite3 已安装: v$sqlite_version"
-    else
-        print_warning "SQLite3 命令行工具未安装 (可选，better-sqlite3 会自动处理)"
     fi
     
     # 如果有缺失的依赖，给出安装建议
@@ -186,11 +175,17 @@ create_directories() {
     
     local directories=(
         "$LOG_DIR"
-        "$DATA_DIR"
-        "$BACKUP_DIR"
+        "$FILE_DB_DIR"
+        "$FILE_DB_DIR/familyMembers"
+        "$FILE_DB_DIR/appConfig"
+        "$PROJECT_DIR/data/diaries"
         "$PROJECT_DIR/uploadFiles/gameFiles"
         "$PROJECT_DIR/uploadFiles/knowledgeFiles"
         "$PROJECT_DIR/uploadFiles/userFiles"
+        "$PROJECT_DIR/uploadFiles/diaryFiles"
+        "$PROJECT_DIR/uploadFiles/members/avatars"
+        "$PROJECT_DIR/uploadFiles/members/logos"
+        "$PROJECT_DIR/uploadFiles/members/attributes"
         "$PROJECT_DIR/tempFiles"
     )
     
@@ -202,114 +197,6 @@ create_directories() {
     done
     
     print_success "目录结构创建完成"
-}
-
-# =============================================================================
-# 智能初始化数据库（按需初始化，不抹除现有数据）
-# =============================================================================
-init_database() {
-    echo ""
-    echo "=============================================="
-    echo "🗄️  智能初始化数据库..."
-    echo "=============================================="
-    
-    # 确保数据目录存在
-    mkdir -p "$DATA_DIR"
-    
-    # 检查数据库是否存在
-    if [ -f "$DB_PATH" ]; then
-        print_info "检测到已有数据库，将进行智能增量更新..."
-        
-        # 记录已执行的更新脚本（存储在数据库中）
-        local db_version_check=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='db_migrations';" 2>/dev/null || echo "0")
-        
-        if [ "$db_version_check" = "0" ]; then
-            # 创建迁移记录表
-            print_step "创建数据库迁移记录表..."
-            sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS db_migrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                script_name TEXT UNIQUE NOT NULL,
-                executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );"
-            
-            # 检查并创建缺失的表（使用 IF NOT EXISTS 保护现有数据）
-            print_step "检查并补充缺失的数据表..."
-            if [ -f "$DB_INIT_SQL" ]; then
-                sqlite3 "$DB_PATH" < "$DB_INIT_SQL" 2>/dev/null || true
-                print_success "数据表结构检查完成（已跳过存在的表）"
-            fi
-        fi
-        
-        # 执行增量更新脚本
-        if [ -d "$DB_UPDATE_DIR" ] && [ "$(ls -A $DB_UPDATE_DIR 2>/dev/null)" ]; then
-            print_step "检查增量更新脚本..."
-            
-            for sql_file in "$DB_UPDATE_DIR"/*.sql; do
-                if [ -f "$sql_file" ]; then
-                    local script_name=$(basename "$sql_file")
-                    
-                    # 检查此脚本是否已执行
-                    local already_executed=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM db_migrations WHERE script_name='$script_name';" 2>/dev/null || echo "0")
-                    
-                    if [ "$already_executed" = "0" ]; then
-                        print_step "执行增量更新: $script_name"
-                        sqlite3 "$DB_PATH" < "$sql_file"
-                        sqlite3 "$DB_PATH" "INSERT INTO db_migrations (script_name) VALUES ('$script_name');"
-                        print_success "增量更新完成: $script_name"
-                    else
-                        print_info "跳过已执行的脚本: $script_name"
-                    fi
-                fi
-            done
-        else
-            print_info "没有待执行的增量更新脚本"
-        fi
-        
-        print_success "数据库智能更新完成（现有数据已保留）"
-        
-    else
-        # 数据库不存在，全新初始化
-        print_step "首次初始化数据库..."
-        
-        # 创建数据库并执行初始化 SQL
-        if [ -f "$DB_INIT_SQL" ]; then
-            sqlite3 "$DB_PATH" < "$DB_INIT_SQL"
-            print_success "数据表创建完成"
-        else
-            print_error "找不到初始化 SQL 文件: $DB_INIT_SQL"
-            exit 1
-        fi
-        
-        # 创建迁移记录表
-        sqlite3 "$DB_PATH" "CREATE TABLE IF NOT EXISTS db_migrations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            script_name TEXT UNIQUE NOT NULL,
-            executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );"
-        
-        # 记录初始化 SQL 为已执行
-        sqlite3 "$DB_PATH" "INSERT INTO db_migrations (script_name) VALUES ('db_init_all.sql');"
-        
-        # 执行所有增量更新脚本
-        if [ -d "$DB_UPDATE_DIR" ] && [ "$(ls -A $DB_UPDATE_DIR 2>/dev/null)" ]; then
-            for sql_file in "$DB_UPDATE_DIR"/*.sql; do
-                if [ -f "$sql_file" ]; then
-                    local script_name=$(basename "$sql_file")
-                    print_step "执行增量更新: $script_name"
-                    sqlite3 "$DB_PATH" < "$sql_file"
-                    sqlite3 "$DB_PATH" "INSERT INTO db_migrations (script_name) VALUES ('$script_name');"
-                fi
-            done
-        fi
-        
-        print_success "数据库初始化完成"
-    fi
-    
-    # 显示数据库信息
-    echo ""
-    print_info "数据库路径: $DB_PATH"
-    local table_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
-    print_info "数据表数量: $table_count"
 }
 
 # =============================================================================
@@ -343,7 +230,8 @@ main() {
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
     echo "║          🏠 家用小工具 - 环境初始化脚本                     ║"
-    echo "║                    版本: 1.0.0                             ║"
+    echo "║                    版本: 2.0.0                             ║"
+    echo "║             (文件存储版 - 无需数据库)                       ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
     echo "项目目录: $PROJECT_DIR"
@@ -353,13 +241,17 @@ main() {
     check_system_dependencies
     create_directories
     init_node_dependencies
-    init_database
     build_projects
     
     echo ""
     echo "╔════════════════════════════════════════════════════════════╗"
     echo "║                    🎉 初始化完成!                           ║"
     echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "项目特点："
+    echo "  ✅ 无需 SQLite 数据库"
+    echo "  ✅ 数据以 JSON 文件形式存储在 fileDB/ 目录"
+    echo "  ✅ 方便 Git 管理和跨机器迁移"
     echo ""
     echo "下一步操作："
     echo "  1. 运行启动脚本: sh ./deployScript/startAll.sh"

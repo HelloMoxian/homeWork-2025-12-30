@@ -4,11 +4,11 @@ import fastifyStatic from '@fastify/static';
 import fastifyMultipart from '@fastify/multipart';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initDatabase } from './db/index.js';
 import familyMembersRoutes from './routes/familyMembers.js';
 import knowledgeRoutes from './routes/knowledge.js';
 import diaryRoutes from './routes/diary.js';
 import { initializeIndex } from './utils/knowledgeIndexManager.js';
+import { initFileDB } from './utils/familyMembersFileManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,8 +79,8 @@ fastify.setNotFoundHandler(async (request, reply) => {
 
 const start = async () => {
     try {
-        // 初始化数据库
-        await initDatabase();
+        // 初始化文件数据库
+        initFileDB();
 
         // 初始化知识库索引
         initializeIndex();

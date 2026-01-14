@@ -21,7 +21,14 @@
 - **前端**: React 18 + Vite + TypeScript
 - **UI**: Tailwind CSS + Lucide Icons
 - **后端**: Fastify + TypeScript
-- **数据库**: SQLite (better-sqlite3)
+- **数据存储**: JSON 文件（无需数据库）
+
+## 项目特点
+
+- ✅ **无需数据库**: 所有数据以 JSON 文件形式存储
+- ✅ **Git 友好**: 数据文件可以直接纳入版本控制
+- ✅ **易于迁移**: 直接复制目录即可完成多机器同步
+- ✅ **简单部署**: 无需配置数据库环境
 
 ## 快速开始
 
@@ -30,9 +37,6 @@
 ```bash
 # 安装所有依赖
 npm run install:all
-
-# 初始化数据库
-npm run db:init
 
 # 启动开发服务
 npm run dev
@@ -44,6 +48,9 @@ npm run dev
 ### 生产部署
 
 ```bash
+# 首次部署需要先初始化
+./deployScript/initAll.sh
+
 # 一键启动（构建 + 部署）
 ./deployScript/startAll.sh
 ```
@@ -63,61 +70,128 @@ homework/
 │   └── dist/            # 构建产物
 ├── server/              # 后端项目 (Fastify)
 │   ├── src/
-│   │   ├── db/          # 数据库相关
+│   │   ├── routes/      # API 路由
+│   │   ├── utils/       # 工具函数和文件管理器
 │   │   └── index.ts     # 服务入口
 │   └── dist/            # 构建产物
+├── fileDB/              # 文件数据库（JSON 数据存储）
+│   ├── familyMembers/   # 家庭成员数据
+│   │   ├── members.json             # 成员信息
+│   │   ├── attributeDefinitions.json # 属性定义
+│   │   └── attributeValues.json     # 属性值
+│   └── appConfig/       # 应用配置
+├── data/                # 应用数据
+│   └── diaries/         # 日记数据（按日期组织）
+├── knowledgeFiles/      # 知识库数据（按分类组织）
 ├── configs/             # 配置文件
 │   ├── config.json      # 静态配置
 │   └── deployConfig.json # 部署配置
-├── dbInit/              # 数据库初始化
-│   ├── db_init_all.sql  # 完整初始化脚本
-│   └── update_step/     # 增量更新脚本
-├── dbBackup/            # 数据库备份
 ├── deployScript/        # 部署脚本
-│   └── startAll.sh      # 一键启动脚本
+│   ├── initAll.sh       # 初始化脚本
+│   └── startAll.sh      # 启动脚本
 ├── logs/                # 日志文件
-├── scripts/             # 工具脚本
-│   └── init-db.ts       # 数据库初始化
 ├── uploadFiles/         # 上传文件
+│   ├── diaryFiles/      # 日记媒体文件
 │   ├── gameFiles/       # 游戏文件
 │   ├── knowledgeFiles/  # 知识库文件
+│   ├── members/         # 成员相关文件
+│   │   ├── avatars/     # 头像
+│   │   ├── logos/       # 属性图标
+│   │   └── attributes/  # 属性图片
 │   └── userFiles/       # 用户文件
-├── tempFiles/           # 临时文件
-├── utils/               # 工具类
+├── tempFiles/           # 临时文件（可删除）
 ├── aiRules/             # AI编程规则
-└── api-docs/            # API文档
+└── docs/                # 项目文档
 ```
 
-#### configs
-- 一些配置文件存放于此，里面包含两个文件
-  - config.json: 用于存放一些静态配置，通常不同的部署环境此文件是相同的
-  - deployConfig.json: 用于存放一些部署信息，通常不同的部署环境此文件是不同的
+## 数据存储说明
 
-#### logs
-- 日志文件存放目录
+### fileDB 目录
 
-#### subRule
-- 一些子规则存放目录，项目不建议将所有的代码都集中放置，可以按需拆分为多个文件放入到subRules的对应文件中
+项目使用 `fileDB/` 目录存储结构化数据，取代传统的 SQLite 数据库：
 
-#### utils
-- 一些工具类函数存放目录
+#### familyMembers/
+- `members.json` - 家庭成员基本信息
+- `attributeDefinitions.json` - 动态属性定义
+- `attributeValues.json` - 成员的属性值
 
-#### dbBackup
-- 一些数据库备份文件存放目录，系统定期创建数据库备份
+### 其他数据目录
 
-#### dbInit
-- 一些数据库初始化sql文件存放目录
-  - db_init_all.sql 所有数据库内容初始化文件
-  - update_step目录，某些开发需要二次改动数据库，将数据库的增量改动放在此目录下，按01-xx.sql命名，如01-user-tablesql,02-role-table.sql
+- `data/diaries/` - 日记数据，按日期（YYYY-MM-DD）组织目录
+- `knowledgeFiles/` - 知识库数据，按分类和层级组织
 
-#### uploadFiles
-- 上传的文件
+### 数据迁移
 
-#### tempFiles
-- 临时文件（可删除）
+由于所有数据都以文件形式存储，迁移非常简单：
 
-#### aiRules
-- AI规则存放目录，此目录下的文件会自动被AI识别并作为规则使用
+```bash
+# 备份数据
+cp -r fileDB/ fileDB_backup/
+cp -r data/ data_backup/
+cp -r knowledgeFiles/ knowledgeFiles_backup/
+cp -r uploadFiles/ uploadFiles_backup/
 
-#### api-docs：
-- 一些对外的交互的说明文档存放在此处，供AI Coding时模型参考，此部分的所有文件不直接参与运行
+# 在新机器上还原
+# 只需将这些目录复制到新项目即可
+```
+
+## API 文档
+
+### 家庭成员接口
+
+- `GET /api/family-members` - 获取所有成员
+- `GET /api/family-members/:id` - 获取单个成员
+- `POST /api/family-members` - 创建成员
+- `PUT /api/family-members/:id` - 更新成员
+- `DELETE /api/family-members/:id` - 删除成员
+
+### 属性定义接口
+
+- `GET /api/member-attributes` - 获取所有属性定义
+- `POST /api/member-attributes` - 创建属性定义
+- `PUT /api/member-attributes/:id` - 更新属性定义
+- `DELETE /api/member-attributes/:id` - 删除属性定义
+
+### 属性值接口
+
+- `GET /api/family-members/:memberId/attributes` - 获取成员的属性值
+- `GET /api/member-attribute-values` - 获取所有属性值
+- `POST /api/member-attribute-values` - 设置或更新属性值
+- `DELETE /api/member-attribute-values/:id` - 删除属性值
+
+### 日记接口
+
+- `GET /api/diary` - 获取所有日记
+- `GET /api/diary/today` - 获取今日日记
+- `GET /api/diary/:id` - 获取指定日记
+- `POST /api/diary` - 创建日记
+- `PUT /api/diary/:id` - 更新日记
+- `DELETE /api/diary/:id` - 删除日记
+
+### 知识库接口
+
+- `GET /api/knowledge/categories` - 获取所有知识库
+- `GET /api/knowledge/sections` - 获取二级板块
+- `GET /api/knowledge/subsections` - 获取三级板块
+- `GET /api/knowledge/items` - 获取知识条目
+
+## 开发指南
+
+### 添加新的数据类型
+
+1. 在 `server/src/utils/` 下创建新的文件管理器
+2. 在 `fileDB/` 下创建对应的数据目录
+3. 在 `server/src/routes/` 下创建 API 路由
+
+### 代码规范
+
+参考 `aiRules/coding_rules.md` 了解项目编码规范。
+
+## 版本历史
+
+- **v2.0.0** (2026-01-12) - 移除 SQLite，改用 JSON 文件存储
+- **v1.0.0** (2025-12-30) - 初始版本，使用 SQLite 数据库
+
+## License
+
+MIT
