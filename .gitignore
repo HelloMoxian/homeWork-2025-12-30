@@ -33,3 +33,7 @@ Thumbs.db
 .env.*.local
 logs/server.pid
 logs/server.pid
+
+# 视频模块忽略
+videoCenter/have_a_break/*.*
+videoCenter/resources/*
