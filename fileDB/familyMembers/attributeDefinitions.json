@@ -15,7 +15,37 @@
       "sort_weight": 0,
       "created_at": "2026-01-12T08:49:39.564Z",
       "updated_at": "2026-01-12T08:49:39.564Z"
+    },
+    {
+      "id": "3",
+      "attribute_name": "1",
+      "attribute_type": "decimal",
+      "options": "",
+      "attribute_logo": "",
+      "sort_weight": 0,
+      "created_at": "2026-01-14T15:37:16.517Z",
+      "updated_at": "2026-01-14T15:37:16.517Z"
+    },
+    {
+      "id": "4",
+      "attribute_name": "11",
+      "attribute_type": "string",
+      "options": "",
+      "attribute_logo": "",
+      "sort_weight": 0,
+      "created_at": "2026-01-14T15:37:21.271Z",
+      "updated_at": "2026-01-14T15:37:21.271Z"
+    },
+    {
+      "id": "5",
+      "attribute_name": "111",
+      "attribute_type": "string",
+      "options": "",
+      "attribute_logo": "",
+      "sort_weight": 0,
+      "created_at": "2026-01-14T15:37:24.404Z",
+      "updated_at": "2026-01-14T15:37:24.404Z"
     }
   ],
-  "last_definition_id": 2
+  "last_definition_id": 5
 }

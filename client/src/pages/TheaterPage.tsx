@@ -204,16 +204,38 @@ export default function TheaterPage() {
 
     // 检查是否需要休息（在播放过程中）
     useEffect(() => {
-        if (playingVideo && needsBreak()) {
+        const intervalSeconds = breakInterval * 60
+        const shouldBreak = sessionWatchTime >= intervalSeconds
+
+        if (playingVideo && shouldBreak) {
             // 获取当前视频元素来检查剩余时长
             const videoElement = document.querySelector('video')
             if (videoElement) {
                 const remainingTime = videoElement.duration - videoElement.currentTime
                 if (remainingTime > 5 * 60 || isNaN(remainingTime)) {
                     // 剩余超过5分钟，立即休息
+                    // 先保存进度
+                    const pathStr = currentPath.join('/')
+                    fetch(`/api/theater/stats/${pathStr}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            filename: playingVideo.filename,
+                            lastPosition: videoElement.currentTime,
+                            duration: videoElement.duration
+                        })
+                    })
+
+                    // 停止计时器
+                    if (watchTimerRef.current) {
+                        clearInterval(watchTimerRef.current)
+                        watchTimerRef.current = null
+                    }
+
                     setPendingVideo({
                         ...playingVideo,
-                        lastPosition: videoElement.currentTime
+                        lastPosition: videoElement.currentTime,
+                        duration: videoElement.duration
                     })
                     setPlayingVideo(null)
                     setIsBreaking(true)
@@ -222,7 +244,7 @@ export default function TheaterPage() {
                 // 否则允许播放完成
             }
         }
-    }, [sessionWatchTime, playingVideo])
+    }, [sessionWatchTime, playingVideo, breakInterval, currentPath])
 
     // 视频播放结束
     const handleVideoEnded = async () => {
