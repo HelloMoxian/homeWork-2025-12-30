@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Upload, Check, Plus, Trash2, Image, Music, Video, RotateCcw } from 'lucide-react'
+import { X, Upload, Check, Plus, Trash2, Image, Music, Video, RotateCcw, Mic, Pause } from 'lucide-react'
 
 interface KnowledgeItem {
     id?: string
@@ -67,6 +67,11 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
     const [uploading, setUploading] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [localItem, setLocalItem] = useState<KnowledgeItem | null | undefined>(item)
+
+    // 录音相关状态
+    const [isRecording, setIsRecording] = useState(false)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const audioChunksRef = useRef<Blob[]>([])
 
     // 临时文件列表（仅用于新建模式）
     const [tempFiles, setTempFiles] = useState<TempFile[]>([])
@@ -149,6 +154,90 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
             return paths ? JSON.parse(paths) : []
         } catch {
             return []
+        }
+    }
+
+    // 开始语音讲解录音
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const mediaRecorder = new MediaRecorder(stream)
+            mediaRecorderRef.current = mediaRecorder
+            audioChunksRef.current = []
+
+            mediaRecorder.ondataavailable = (e) => {
+                audioChunksRef.current.push(e.data)
+            }
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+                await uploadRecordedAudio(audioBlob)
+                stream.getTracks().forEach(track => track.stop())
+            }
+
+            mediaRecorder.start()
+            setIsRecording(true)
+        } catch (error) {
+            console.error('Start recording error:', error)
+            alert('无法访问麦克风，请检查权限设置')
+        }
+    }
+
+    // 停止录音
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop()
+            setIsRecording(false)
+        }
+    }
+
+    // 上传录制的音频
+    const uploadRecordedAudio = async (blob: Blob) => {
+        setUploading('audio')
+        try {
+            const uploadFormData = new FormData()
+            uploadFormData.append('file', blob, `voice_${Date.now()}.webm`)
+
+            // 如果是新建条目，上传到临时目录
+            if (!item?.id) {
+                const uploadUrl = `/api/upload/knowledge-temp?type=audio`
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: uploadFormData
+                })
+
+                const result = await response.json()
+                if (result.success) {
+                    setTempFiles(prev => [...prev, {
+                        filename: result.data.filename,
+                        path: result.data.path,
+                        type: 'audio'
+                    }])
+                } else {
+                    alert('上传失败: ' + result.error)
+                }
+            } else {
+                // 编辑模式：直接上传到知识条目目录
+                const uploadUrl = `/api/upload/knowledge-media?itemId=${encodeURIComponent(item.id)}&type=audio`
+
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: uploadFormData
+                })
+
+                const result = await response.json()
+                if (result.success) {
+                    const currentPaths = parsePathArray(formData.audio_paths as string)
+                    currentPaths.push(result.data.path)
+                    setFormData({ ...formData, audio_paths: JSON.stringify(currentPaths) })
+                } else {
+                    alert('上传失败: ' + result.error)
+                }
+            }
+        } catch (error) {
+            alert('上传失败: ' + error)
+        } finally {
+            setUploading(null)
         }
     }
 
@@ -458,10 +547,23 @@ export default function AddItemDialog({ sectionId, subsectionId, categoryDir, se
                                         </div>
                                     )
                                 })}
-                                <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200">
-                                    <input type="file" accept="audio/*" onChange={(e) => handleFileUpload('audio', e)} className="hidden" />
-                                    {uploading === 'audio' ? '上传中...' : <><Plus size={16} /> 添加音频</>}
-                                </label>
+                                <div className="flex gap-2 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={isRecording ? stopRecording : startRecording}
+                                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition ${isRecording
+                                            ? 'bg-red-500 text-white animate-pulse'
+                                            : 'bg-teal-100 hover:bg-teal-200 text-teal-700'
+                                            }`}
+                                    >
+                                        {isRecording ? <Pause size={16} /> : <Mic size={16} />}
+                                        {isRecording ? '停止录音' : '语音讲解'}
+                                    </button>
+                                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200">
+                                        <input type="file" accept="audio/*" onChange={(e) => handleFileUpload('audio', e)} className="hidden" />
+                                        {uploading === 'audio' ? '上传中...' : <><Plus size={16} /> 添加音频</>}
+                                    </label>
+                                </div>
                             </div>
                         </div>
 

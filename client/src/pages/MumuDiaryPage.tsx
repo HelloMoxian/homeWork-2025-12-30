@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
     PenTool, Calendar, Cloud, Smile, Utensils, FileText,
     Image, Video, Mic, Plus, Trash2, ChevronLeft, ChevronRight,
-    Camera, Upload, X, Save, Play, Pause
+    Camera, Upload, X, Save, Play, Pause, Thermometer
 } from 'lucide-react'
 import PageContainer from '@/components/PageContainer'
 
@@ -14,6 +14,12 @@ interface MoodOption {
 }
 
 interface WeatherOption {
+    value: string
+    label: string
+    emoji: string
+}
+
+interface WeatherFeelOption {
     value: string
     label: string
     emoji: string
@@ -34,7 +40,8 @@ interface MealRecord {
 interface DiaryEntry {
     id: string
     date: string
-    weather?: string
+    weather?: string[]  // 改为数组支持多选
+    weatherFeel?: string  // 天气体感
     moods: MoodRecord[]
     meals: MealRecord[]
     events: string
@@ -52,6 +59,7 @@ interface Options {
         evening: MoodOption[]
     }
     weatherOptions: WeatherOption[]
+    weatherFeelOptions: WeatherFeelOption[]
 }
 
 // 时段标签
@@ -78,6 +86,23 @@ export default function MumuDiaryPage() {
     const [saving, setSaving] = useState(false)
     const [isRecording, setIsRecording] = useState(false)
     const [recordingPeriod, setRecordingPeriod] = useState<string | null>(null)
+
+    // 拍照相关状态
+    const [showCameraModal, setShowCameraModal] = useState(false)
+    const [cameraCountdown, setCameraCountdown] = useState(0)
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+    const cameraVideoRef = useRef<HTMLVideoElement>(null)
+    const cameraCanvasRef = useRef<HTMLCanvasElement>(null)
+
+    // 摄影相关状态
+    const [showVideoRecordModal, setShowVideoRecordModal] = useState(false)
+    const [videoRecordStream, setVideoRecordStream] = useState<MediaStream | null>(null)
+    const [isVideoRecording, setIsVideoRecording] = useState(false)
+    const [videoRecordTime, setVideoRecordTime] = useState(0)
+    const videoRecordRef = useRef<HTMLVideoElement>(null)
+    const videoMediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const videoChunksRef = useRef<Blob[]>([])
+    const videoRecordTimerRef = useRef<NodeJS.Timeout | null>(null)
 
     // refs
     const imageInputRef = useRef<HTMLInputElement>(null)
@@ -192,9 +217,30 @@ export default function MumuDiaryPage() {
         setCurrentDate(new Date())
     }
 
-    // 更新天气
-    const updateWeather = (weather: string) => {
-        saveDiary({ weather })
+    // 更新天气（多选）
+    const toggleWeather = (weatherValue: string) => {
+        if (!diary) return
+        const currentWeather = diary.weather || []
+        let newWeather: string[]
+
+        if (currentWeather.includes(weatherValue)) {
+            newWeather = currentWeather.filter(w => w !== weatherValue)
+        } else {
+            newWeather = [...currentWeather, weatherValue]
+        }
+
+        saveDiary({ weather: newWeather })
+    }
+
+    // 更新天气体感
+    const updateWeatherFeel = (weatherFeel: string) => {
+        if (!diary) return
+        // 如果点击当前选中的体感，则取消选择
+        if (diary.weatherFeel === weatherFeel) {
+            saveDiary({ weatherFeel: undefined })
+        } else {
+            saveDiary({ weatherFeel })
+        }
     }
 
     // 更新心情
@@ -400,6 +446,181 @@ export default function MumuDiaryPage() {
         }
     }
 
+    // 拍照功能
+    const openCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            })
+            setCameraStream(stream)
+            setShowCameraModal(true)
+
+            // 等待视频元素准备好
+            setTimeout(() => {
+                if (cameraVideoRef.current) {
+                    cameraVideoRef.current.srcObject = stream
+                }
+                // 开始3秒倒计时
+                setCameraCountdown(3)
+            }, 100)
+        } catch (error) {
+            console.error('Open camera error:', error)
+            alert('无法访问摄像头，请检查权限设置')
+        }
+    }
+
+    // 倒计时效果
+    useEffect(() => {
+        if (cameraCountdown > 0) {
+            const timer = setTimeout(() => {
+                setCameraCountdown(cameraCountdown - 1)
+            }, 1000)
+            return () => clearTimeout(timer)
+        } else if (cameraCountdown === 0 && showCameraModal && cameraStream) {
+            // 倒计时结束，自动拍照
+            takePhoto()
+        }
+    }, [cameraCountdown, showCameraModal, cameraStream])
+
+    const takePhoto = async () => {
+        if (!cameraVideoRef.current || !cameraCanvasRef.current || !diary) return
+
+        const video = cameraVideoRef.current
+        const canvas = cameraCanvasRef.current
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+            ctx.drawImage(video, 0, 0)
+            canvas.toBlob(async (blob) => {
+                if (blob) {
+                    const formData = new FormData()
+                    formData.append('file', blob, `photo_${Date.now()}.jpg`)
+
+                    try {
+                        const response = await fetch(`/api/diary/${diary.id}/upload/image`, {
+                            method: 'POST',
+                            body: formData
+                        })
+                        const result = await response.json()
+                        if (result.success) {
+                            loadDiary()
+                        }
+                    } catch (error) {
+                        console.error('Upload photo error:', error)
+                    }
+                }
+                closeCamera()
+            }, 'image/jpeg', 0.9)
+        }
+    }
+
+    const closeCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop())
+            setCameraStream(null)
+        }
+        setShowCameraModal(false)
+        setCameraCountdown(0)
+    }
+
+    // 摄影功能
+    const openVideoRecorder = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+                audio: true
+            })
+            setVideoRecordStream(stream)
+            setShowVideoRecordModal(true)
+
+            setTimeout(() => {
+                if (videoRecordRef.current) {
+                    videoRecordRef.current.srcObject = stream
+                }
+            }, 100)
+        } catch (error) {
+            console.error('Open video recorder error:', error)
+            alert('无法访问摄像头，请检查权限设置')
+        }
+    }
+
+    const startVideoRecording = () => {
+        if (!videoRecordStream) return
+
+        const mediaRecorder = new MediaRecorder(videoRecordStream)
+        videoMediaRecorderRef.current = mediaRecorder
+        videoChunksRef.current = []
+
+        mediaRecorder.ondataavailable = (e) => {
+            videoChunksRef.current.push(e.data)
+        }
+
+        mediaRecorder.onstop = async () => {
+            const videoBlob = new Blob(videoChunksRef.current, { type: 'video/webm' })
+            await uploadRecordedVideo(videoBlob)
+        }
+
+        mediaRecorder.start()
+        setIsVideoRecording(true)
+        setVideoRecordTime(0)
+
+        // 开始计时，最多60秒
+        videoRecordTimerRef.current = setInterval(() => {
+            setVideoRecordTime(prev => {
+                if (prev >= 60) {
+                    stopVideoRecording()
+                    return 60
+                }
+                return prev + 1
+            })
+        }, 1000)
+    }
+
+    const stopVideoRecording = () => {
+        if (videoMediaRecorderRef.current && isVideoRecording) {
+            videoMediaRecorderRef.current.stop()
+            setIsVideoRecording(false)
+            if (videoRecordTimerRef.current) {
+                clearInterval(videoRecordTimerRef.current)
+                videoRecordTimerRef.current = null
+            }
+        }
+    }
+
+    const uploadRecordedVideo = async (blob: Blob) => {
+        if (!diary) return
+        const formData = new FormData()
+        formData.append('file', blob, `video_${Date.now()}.webm`)
+
+        try {
+            const response = await fetch(`/api/diary/${diary.id}/upload/video`, {
+                method: 'POST',
+                body: formData
+            })
+            const result = await response.json()
+            if (result.success) {
+                loadDiary()
+            }
+        } catch (error) {
+            console.error('Upload video error:', error)
+        }
+        closeVideoRecorder()
+    }
+
+    const closeVideoRecorder = () => {
+        if (isVideoRecording) {
+            stopVideoRecording()
+        }
+        if (videoRecordStream) {
+            videoRecordStream.getTracks().forEach(track => track.stop())
+            setVideoRecordStream(null)
+        }
+        setShowVideoRecordModal(false)
+        setVideoRecordTime(0)
+    }
+
     // 获取心情记录
     const getMoodRecord = (period: 'morning' | 'afternoon' | 'evening') => {
         return diary?.moods.find(m => m.period === period)
@@ -478,10 +699,10 @@ export default function MumuDiaryPage() {
                                     key={day}
                                     onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
                                     className={`w-7 h-7 rounded-full text-xs transition ${isToday
-                                            ? 'bg-purple-500 text-white'
-                                            : hasDiary
-                                                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                                : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                                        ? 'bg-purple-500 text-white'
+                                        : hasDiary
+                                            ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                                            : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
                                         }`}
                                 >
                                     {day}
@@ -507,18 +728,41 @@ export default function MumuDiaryPage() {
                             <div className="flex items-center gap-2 mb-4">
                                 <Cloud className="text-blue-500" size={24} />
                                 <h3 className="font-bold text-lg">今日天气</h3>
+                                <span className="text-xs text-gray-400">（可多选）</span>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {options?.weatherOptions.map((weather) => (
                                     <button
                                         key={weather.value}
-                                        onClick={() => updateWeather(weather.value)}
-                                        className={`px-4 py-2 rounded-full transition ${diary?.weather === weather.value
-                                                ? 'bg-blue-500 text-white'
-                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                        onClick={() => toggleWeather(weather.value)}
+                                        className={`px-4 py-2 rounded-full transition ${diary?.weather?.includes(weather.value)
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                                             }`}
                                     >
                                         {weather.emoji} {weather.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 天气体感 */}
+                        <div className="bg-white rounded-xl shadow-md p-4">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Thermometer className="text-orange-500" size={24} />
+                                <h3 className="font-bold text-lg">天气体感</h3>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {options?.weatherFeelOptions?.map((feel) => (
+                                    <button
+                                        key={feel.value}
+                                        onClick={() => updateWeatherFeel(feel.value)}
+                                        className={`px-4 py-2 rounded-full transition ${diary?.weatherFeel === feel.value
+                                            ? 'bg-orange-500 text-white'
+                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                            }`}
+                                    >
+                                        {feel.emoji} {feel.label}
                                     </button>
                                 ))}
                             </div>
@@ -546,8 +790,8 @@ export default function MumuDiaryPage() {
                                                     key={mood.value}
                                                     onClick={() => toggleMood(period, mood.value)}
                                                     className={`px-3 py-1.5 rounded-full text-sm transition ${moodRecord?.moods.includes(mood.value)
-                                                            ? 'bg-yellow-400 text-white'
-                                                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                                        ? 'bg-yellow-400 text-white'
+                                                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                                                         }`}
                                                 >
                                                     {mood.emoji} {mood.label}
@@ -620,6 +864,13 @@ export default function MumuDiaryPage() {
                                 </div>
                                 <div className="flex gap-2">
                                     <button
+                                        onClick={openCamera}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-lg text-sm transition"
+                                    >
+                                        <Camera size={16} />
+                                        拍照记录
+                                    </button>
+                                    <button
                                         onClick={() => imageInputRef.current?.click()}
                                         className="flex items-center gap-1 px-3 py-1.5 bg-pink-100 hover:bg-pink-200 text-pink-600 rounded-lg text-sm transition"
                                     >
@@ -653,7 +904,7 @@ export default function MumuDiaryPage() {
                                 ))}
                                 {(!diary?.images || diary.images.length === 0) && (
                                     <div className="col-span-3 text-center py-8 text-gray-400 text-sm">
-                                        还没有图片，点击上传添加
+                                        还没有图片，点击上传或拍照添加
                                     </div>
                                 )}
                             </div>
@@ -666,13 +917,22 @@ export default function MumuDiaryPage() {
                                     <Video className="text-red-500" size={24} />
                                     <h3 className="font-bold text-lg">视频记录</h3>
                                 </div>
-                                <button
-                                    onClick={() => videoInputRef.current?.click()}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm transition"
-                                >
-                                    <Upload size={16} />
-                                    上传
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={openVideoRecorder}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-lg text-sm transition"
+                                    >
+                                        <Camera size={16} />
+                                        摄影记录
+                                    </button>
+                                    <button
+                                        onClick={() => videoInputRef.current?.click()}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm transition"
+                                    >
+                                        <Upload size={16} />
+                                        上传
+                                    </button>
+                                </div>
                                 <input
                                     ref={videoInputRef}
                                     type="file"
@@ -699,7 +959,7 @@ export default function MumuDiaryPage() {
                                 ))}
                                 {(!diary?.videos || diary.videos.length === 0) && (
                                     <div className="text-center py-8 text-gray-400 text-sm">
-                                        还没有视频，点击上传添加
+                                        还没有视频，点击上传或摄影添加
                                     </div>
                                 )}
                             </div>
@@ -716,8 +976,8 @@ export default function MumuDiaryPage() {
                                     <button
                                         onClick={isRecording ? stopRecording : startRecording}
                                         className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition ${isRecording
-                                                ? 'bg-red-500 text-white animate-pulse'
-                                                : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600'
+                                            ? 'bg-red-500 text-white animate-pulse'
+                                            : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600'
                                             }`}
                                     >
                                         {isRecording ? <Pause size={16} /> : <Mic size={16} />}
@@ -765,6 +1025,86 @@ export default function MumuDiaryPage() {
                     </div>
                 </div>
             </div>
+
+            {/* 拍照模态框 */}
+            {showCameraModal && (
+                <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50">
+                    <div className="relative">
+                        <video
+                            ref={cameraVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="max-w-full max-h-[70vh] rounded-lg"
+                        />
+                        {cameraCountdown > 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-9xl font-bold text-white drop-shadow-lg animate-pulse">
+                                    {cameraCountdown}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <canvas ref={cameraCanvasRef} className="hidden" />
+                    <button
+                        onClick={closeCamera}
+                        className="mt-6 px-6 py-3 bg-white/20 hover:bg-white/30 text-white rounded-lg transition flex items-center gap-2"
+                    >
+                        <X size={20} />
+                        取消
+                    </button>
+                </div>
+            )}
+
+            {/* 摄影模态框 */}
+            {showVideoRecordModal && (
+                <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50">
+                    <div className="relative">
+                        <video
+                            ref={videoRecordRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="max-w-full max-h-[70vh] rounded-lg"
+                        />
+                        {isVideoRecording && (
+                            <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500 text-white px-3 py-1 rounded-lg">
+                                <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                                录制中 {videoRecordTime}s / 60s
+                            </div>
+                        )}
+                    </div>
+                    <div className="mt-6 flex gap-4">
+                        {!isVideoRecording ? (
+                            <button
+                                onClick={startVideoRecording}
+                                className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition flex items-center gap-2"
+                            >
+                                <Play size={20} />
+                                开始录制
+                            </button>
+                        ) : (
+                            <button
+                                onClick={stopVideoRecording}
+                                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition flex items-center gap-2"
+                            >
+                                <Pause size={20} />
+                                停止录制
+                            </button>
+                        )}
+                        <button
+                            onClick={closeVideoRecorder}
+                            className="px-6 py-3 bg-white/20 hover:bg-white/30 text-white rounded-lg transition flex items-center gap-2"
+                        >
+                            <X size={20} />
+                            取消
+                        </button>
+                    </div>
+                    <div className="mt-4 text-white/60 text-sm">
+                        每条视频最多录制1分钟
+                    </div>
+                </div>
+            )}
         </PageContainer>
     )
 }

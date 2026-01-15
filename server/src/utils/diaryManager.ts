@@ -49,6 +49,12 @@ export const WEATHER_OPTIONS = [
     { value: 'snowy', label: '下雪', emoji: '❄️' },
     { value: 'windy', label: '大风', emoji: '💨' },
     { value: 'foggy', label: '雾', emoji: '🌫️' },
+    { value: 'sandstorm', label: '沙尘', emoji: '🏜️' }
+];
+
+// 天气体感选项
+export const WEATHER_FEEL_OPTIONS = [
+    { value: 'comfortable', label: '舒适', emoji: '😌' },
     { value: 'hot', label: '炎热', emoji: '🔥' },
     { value: 'cold', label: '寒冷', emoji: '🥶' }
 ];
@@ -71,7 +77,8 @@ export interface MealRecord {
 export interface DiaryEntry {
     id: string;  // 日期格式: YYYY-MM-DD
     date: string;  // 日期
-    weather?: string;  // 天气
+    weather?: string[];  // 天气（支持多选）
+    weatherFeel?: string;  // 天气体感
     moods: MoodRecord[];  // 心情记录
     meals: MealRecord[];  // 饮食记录
     events: string;  // 一天的事情
@@ -372,6 +379,7 @@ export function deleteMediaFile(
 export function getOptions() {
     return {
         moodOptions: MOOD_OPTIONS,
-        weatherOptions: WEATHER_OPTIONS
+        weatherOptions: WEATHER_OPTIONS,
+        weatherFeelOptions: WEATHER_FEEL_OPTIONS
     };
 }
