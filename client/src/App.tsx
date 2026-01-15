@@ -12,6 +12,9 @@ import PeriodicTasksPage from './pages/PeriodicTasksPage'
 import GameSpacePage from './pages/GameSpacePage'
 import TheaterPage from './pages/TheaterPage'
 import HonorsPage from './pages/HonorsPage'
+import HonorHallDetailPage from './pages/HonorHallDetailPage'
+import HonorDetailPage from './pages/HonorDetailPage'
+import HonorPlayPage from './pages/HonorPlayPage'
 import FavoritesPage from './pages/FavoritesPage'
 import GrowthTrackPage from './pages/GrowthTrackPage'
 
@@ -31,9 +34,13 @@ function App() {
                 <Route path="games" element={<GameSpacePage />} />
                 <Route path="theater" element={<TheaterPage />} />
                 <Route path="honors" element={<HonorsPage />} />
+                <Route path="honors/:hallId" element={<HonorHallDetailPage />} />
+                <Route path="honors/:hallId/detail/:honorId" element={<HonorDetailPage />} />
                 <Route path="favorites" element={<FavoritesPage />} />
                 <Route path="growth" element={<GrowthTrackPage />} />
             </Route>
+            {/* 荣誉播放页面（全屏，不使用Layout） */}
+            <Route path="honors/:hallId/play" element={<HonorPlayPage />} />
         </Routes>
     )
 }

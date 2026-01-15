@@ -8,8 +8,10 @@ import familyMembersRoutes from './routes/familyMembers.js';
 import knowledgeRoutes from './routes/knowledge.js';
 import diaryRoutes from './routes/diary.js';
 import theaterRoutes from './routes/theater.js';
+import honorsRoutes from './routes/honors.js';
 import { initializeIndex } from './utils/knowledgeIndexManager.js';
 import { initFileDB } from './utils/familyMembersFileManager.js';
+import { initHonorsDB } from './utils/honorsManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,6 +75,7 @@ await fastify.register(familyMembersRoutes);
 await fastify.register(knowledgeRoutes);
 await fastify.register(diaryRoutes);
 await fastify.register(theaterRoutes);
+await fastify.register(honorsRoutes);
 
 // API 路由
 fastify.get('/api/health', async () => {
@@ -94,6 +97,9 @@ const start = async () => {
 
         // 初始化知识库索引
         initializeIndex();
+
+        // 初始化荣誉室数据库
+        initHonorsDB();
 
         await fastify.listen({ port: 3000, host: '0.0.0.0' });
         console.log('🚀 服务器已启动: http://localhost:3000');
