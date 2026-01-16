@@ -4,9 +4,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { compressImageBuffer, isImageFile } from '../utils/imageCompress.js';
 import * as FamilyMembersManager from '../utils/familyMembersFileManager.js';
+import { getFamilyMembersDataPath } from '../utils/deployConfigManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 获取成员上传目录
+function getMembersUploadDir(): string {
+    return path.join(getFamilyMembersDataPath(), 'uploads');
+}
 
 // 类型定义
 interface FamilyMemberInput {
@@ -284,7 +290,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
                 return reply.status(400).send({ success: false, error: '没有文件上传' });
             }
 
-            const uploadDir = path.join(__dirname, '../../../uploadFiles/members/avatars');
+            const uploadDir = path.join(getMembersUploadDir(), 'avatars');
 
             // 确保目录存在
             if (!fs.existsSync(uploadDir)) {
@@ -304,7 +310,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
             }
             fs.writeFileSync(filepath, buffer);
 
-            const relativePath = `uploadFiles/members/avatars/${filename}`;
+            const relativePath = `membersUploads/avatars/${filename}`;
             return { success: true, data: { path: relativePath } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -319,7 +325,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
                 return reply.status(400).send({ success: false, error: '没有文件上传' });
             }
 
-            const uploadDir = path.join(__dirname, '../../../uploadFiles/members/logos');
+            const uploadDir = path.join(getMembersUploadDir(), 'logos');
 
             // 确保目录存在
             if (!fs.existsSync(uploadDir)) {
@@ -339,7 +345,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
             }
             fs.writeFileSync(filepath, buffer);
 
-            const relativePath = `uploadFiles/members/logos/${filename}`;
+            const relativePath = `membersUploads/logos/${filename}`;
             return { success: true, data: { path: relativePath } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -354,7 +360,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
                 return reply.status(400).send({ success: false, error: '没有文件上传' });
             }
 
-            const uploadDir = path.join(__dirname, '../../../uploadFiles/members/attributes');
+            const uploadDir = path.join(getMembersUploadDir(), 'attributes');
 
             // 确保目录存在
             if (!fs.existsSync(uploadDir)) {
@@ -374,7 +380,7 @@ export default async function familyMembersRoutes(fastify: FastifyInstance) {
             }
             fs.writeFileSync(filepath, buffer);
 
-            const relativePath = `uploadFiles/members/attributes/${filename}`;
+            const relativePath = `membersUploads/attributes/${filename}`;
             return { success: true, data: { path: relativePath } };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });

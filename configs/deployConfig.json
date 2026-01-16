@@ -3,19 +3,13 @@
         "host": "0.0.0.0",
         "port": 6666
     },
-    "database": {
-        "type": "sqlite",
-        "path": "./data/homework.db"
-    },
-    "logs": {
-        "path": "./logs"
-    },
     "dataPaths": {
         "theater": "../homeWorkData/theater",
         "knowledge": "../homeWorkData/knowledge",
         "familyMembers": "../homeWorkData/familyMembers",
         "diary": "../homeWorkData/diary",
         "honors": "../homeWorkData/honors",
-        "games": "../homeWorkData/games"
+        "games": "../homeWorkData/games",
+        "tasks": "../homeWorkData/tasks"
     }
 }

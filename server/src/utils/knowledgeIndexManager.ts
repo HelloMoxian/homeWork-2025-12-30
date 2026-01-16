@@ -1,13 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getKnowledgeDataPath } from './deployConfigManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 知识库根目录
-const KNOWLEDGE_ROOT = path.join(__dirname, '../../../knowledgeFiles');
-const INDEX_FILE_PATH = path.join(__dirname, '../../../data/knowledgeIndex.json');
+// 获取知识库根目录（从配置读取）
+function getKnowledgeRoot(): string {
+    return getKnowledgeDataPath();
+}
+
+// 获取索引文件路径（存储在知识库数据目录下）
+function getIndexFilePath(): string {
+    return path.join(getKnowledgeDataPath(), 'knowledgeIndex.json');
+}
 
 // ============ 索引数据类型 ============
 
@@ -125,16 +132,17 @@ export function generateIndex(): KnowledgeIndex {
     console.log('🔄 开始生成知识库索引...');
     const startTime = Date.now();
 
-    ensureDir(KNOWLEDGE_ROOT);
+    const knowledgeRoot = getKnowledgeRoot();
+    ensureDir(knowledgeRoot);
 
     const categories: CategoryIndex[] = [];
     const sections: SectionIndex[] = [];
     const subsections: SubSectionIndex[] = [];
 
-    const categoryDirs = getDirectories(KNOWLEDGE_ROOT);
+    const categoryDirs = getDirectories(knowledgeRoot);
 
     for (const categoryDir of categoryDirs) {
-        const categoryPath = path.join(KNOWLEDGE_ROOT, categoryDir);
+        const categoryPath = path.join(knowledgeRoot, categoryDir);
         const categoryConfigPath = path.join(categoryPath, 'config.json');
         const categoryConfig = readJsonFile<any>(categoryConfigPath);
 
@@ -252,7 +260,7 @@ export function generateIndex(): KnowledgeIndex {
     console.log(`   - 总知识条目: ${categories.reduce((sum, c) => sum + c.item_count, 0)}`);
 
     // 保存到文件
-    writeJsonFile(INDEX_FILE_PATH, index);
+    writeJsonFile(getIndexFilePath(), index);
 
     // 更新缓存
     indexCache = index;
@@ -268,7 +276,7 @@ export function loadIndex(): KnowledgeIndex | null {
         return indexCache;
     }
 
-    const index = readJsonFile<KnowledgeIndex>(INDEX_FILE_PATH);
+    const index = readJsonFile<KnowledgeIndex>(getIndexFilePath());
     if (index) {
         indexCache = index;
     }

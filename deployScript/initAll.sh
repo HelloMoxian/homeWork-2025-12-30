@@ -165,41 +165,6 @@ init_node_dependencies() {
 }
 
 # =============================================================================
-# 创建必要的目录结构
-# =============================================================================
-create_directories() {
-    echo ""
-    echo "=============================================="
-    echo "📁 创建目录结构..."
-    echo "=============================================="
-    
-    local directories=(
-        "$LOG_DIR"
-        "$FILE_DB_DIR"
-        "$FILE_DB_DIR/familyMembers"
-        "$FILE_DB_DIR/appConfig"
-        "$PROJECT_DIR/data/diaries"
-        "$PROJECT_DIR/uploadFiles/gameFiles"
-        "$PROJECT_DIR/uploadFiles/knowledgeFiles"
-        "$PROJECT_DIR/uploadFiles/userFiles"
-        "$PROJECT_DIR/uploadFiles/diaryFiles"
-        "$PROJECT_DIR/uploadFiles/members/avatars"
-        "$PROJECT_DIR/uploadFiles/members/logos"
-        "$PROJECT_DIR/uploadFiles/members/attributes"
-        "$PROJECT_DIR/tempFiles"
-    )
-    
-    for dir in "${directories[@]}"; do
-        if [ ! -d "$dir" ]; then
-            mkdir -p "$dir"
-            print_step "创建目录: ${dir#$PROJECT_DIR/}"
-        fi
-    done
-    
-    print_success "目录结构创建完成"
-}
-
-# =============================================================================
 # 构建项目
 # =============================================================================
 build_projects() {

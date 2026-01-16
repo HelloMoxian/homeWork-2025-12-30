@@ -25,6 +25,9 @@ import {
     getTheaterDataPath,
     getDiaryDataPath,
     getTasksDataPath,
+    getGamesDataPath,
+    getHonorsDataPath,
+    getFamilyMembersDataPath,
     ensureDataDirectories,
     getAllDataPaths
 } from './utils/deployConfigManager.js';
@@ -105,14 +108,36 @@ if (fs.existsSync(videoCenterPath)) {
     });
 }
 
-// 游戏上传文件静态访问
-const gameUploadPath = path.join(__dirname, '../../uploadFiles/gameFiles');
+// 游戏上传文件静态访问（从配置获取路径）
+const gameUploadPath = path.join(getGamesDataPath(), 'uploads');
 if (!fs.existsSync(gameUploadPath)) {
     fs.mkdirSync(gameUploadPath, { recursive: true });
 }
 await fastify.register(fastifyStatic, {
     root: gameUploadPath,
-    prefix: '/uploadFiles/gameFiles/',
+    prefix: '/gameUploads/',
+    decorateReply: false
+});
+
+// 荣誉上传文件静态访问（从配置获取路径）
+const honorsUploadPath = path.join(getHonorsDataPath(), 'uploads');
+if (!fs.existsSync(honorsUploadPath)) {
+    fs.mkdirSync(honorsUploadPath, { recursive: true });
+}
+await fastify.register(fastifyStatic, {
+    root: honorsUploadPath,
+    prefix: '/honorsUploads/',
+    decorateReply: false
+});
+
+// 成员上传文件静态访问（从配置获取路径）
+const membersUploadPath = path.join(getFamilyMembersDataPath(), 'uploads');
+if (!fs.existsSync(membersUploadPath)) {
+    fs.mkdirSync(membersUploadPath, { recursive: true });
+}
+await fastify.register(fastifyStatic, {
+    root: membersUploadPath,
+    prefix: '/membersUploads/',
     decorateReply: false
 });
 

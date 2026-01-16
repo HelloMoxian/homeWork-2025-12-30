@@ -14,6 +14,7 @@ import {
     addDanceTemplate,
     deleteDanceTemplate
 } from '../utils/gamesManager.js';
+import { getGamesDataPath } from '../utils/deployConfigManager.js';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -22,6 +23,11 @@ import { pipeline } from 'stream/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 获取跳舞上传目录
+function getFollowDanceUploadDir(): string {
+    return path.join(getGamesDataPath(), 'uploads', 'followDance');
+}
 
 const gamesRoutes: FastifyPluginAsync = async (fastify) => {
     // 获取游戏列表
@@ -225,7 +231,7 @@ const gamesRoutes: FastifyPluginAsync = async (fastify) => {
             const templateId = randomUUID();
 
             // 确保上传目录存在
-            const uploadDir = path.join(__dirname, '../../../uploadFiles/gameFiles/followDance');
+            const uploadDir = getFollowDanceUploadDir();
             if (!fs.existsSync(uploadDir)) {
                 fs.mkdirSync(uploadDir, { recursive: true });
             }
@@ -241,12 +247,12 @@ const gamesRoutes: FastifyPluginAsync = async (fastify) => {
                         const filename = `${templateId}_video${ext}`;
                         const filePath = path.join(uploadDir, filename);
                         await pipeline(part.file, fs.createWriteStream(filePath));
-                        videoPath = `/uploadFiles/gameFiles/followDance/${filename}`;
+                        videoPath = `/gameUploads/followDance/${filename}`;
                     } else if (part.fieldname === 'cover') {
                         const filename = `${templateId}_cover${ext}`;
                         const filePath = path.join(uploadDir, filename);
                         await pipeline(part.file, fs.createWriteStream(filePath));
-                        coverPath = `/uploadFiles/gameFiles/followDance/${filename}`;
+                        coverPath = `/gameUploads/followDance/${filename}`;
                     }
                 }
             }
@@ -284,7 +290,7 @@ const gamesRoutes: FastifyPluginAsync = async (fastify) => {
             }
 
             // 删除相关文件
-            const uploadDir = path.join(__dirname, '../../../uploadFiles/gameFiles/followDance');
+            const uploadDir = getFollowDanceUploadDir();
             if (template.videoUrl) {
                 const videoFile = path.join(uploadDir, path.basename(template.videoUrl));
                 if (fs.existsSync(videoFile)) {

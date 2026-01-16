@@ -4,18 +4,22 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as HonorsManager from '../utils/honorsManager.js';
 import { compressImageBuffer, isImageFile } from '../utils/imageCompress.js';
+import { getHonorsDataPath } from '../utils/deployConfigManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 上传目录
-const UPLOAD_DIR = path.join(__dirname, '../../../uploadFiles/honors');
+// 获取上传目录（基于配置的荣誉室数据路径）
+function getUploadDir(): string {
+    return path.join(getHonorsDataPath(), 'uploads');
+}
 
 // 确保上传目录存在
 function ensureUploadDirs(): void {
+    const uploadDir = getUploadDir();
     const dirs = ['images', 'videos', 'recordings', 'icons'];
     dirs.forEach(dir => {
-        const dirPath = path.join(UPLOAD_DIR, dir);
+        const dirPath = path.join(uploadDir, dir);
         if (!fs.existsSync(dirPath)) {
             fs.mkdirSync(dirPath, { recursive: true });
         }
@@ -122,7 +126,8 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
 
             const buffer = await data.toBuffer();
             const fileName = generateFileName(data.filename);
-            const filePath = path.join(UPLOAD_DIR, 'icons', fileName);
+            const uploadDir = getUploadDir();
+            const filePath = path.join(uploadDir, 'icons', fileName);
 
             // 如果是图片，进行压缩
             if (isImageFile(data.filename)) {
@@ -138,7 +143,7 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
 
             return {
                 success: true,
-                data: { path: `/uploadFiles/honors/icons/${fileName}` }
+                data: { path: `/honorsUploads/icons/${fileName}` }
             };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });
@@ -261,11 +266,12 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
         try {
             const parts = request.files();
             const uploadedPaths: string[] = [];
+            const uploadDir = getUploadDir();
 
             for await (const part of parts) {
                 const buffer = await part.toBuffer();
                 const fileName = generateFileName(part.filename);
-                const filePath = path.join(UPLOAD_DIR, 'images', fileName);
+                const filePath = path.join(uploadDir, 'images', fileName);
 
                 // 图片压缩
                 if (isImageFile(part.filename)) {
@@ -279,7 +285,7 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
                     fs.writeFileSync(filePath, buffer);
                 }
 
-                uploadedPaths.push(`/uploadFiles/honors/images/${fileName}`);
+                uploadedPaths.push(`/honorsUploads/images/${fileName}`);
             }
 
             return { success: true, data: { paths: uploadedPaths } };
@@ -293,14 +299,15 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
         try {
             const parts = request.files();
             const uploadedPaths: string[] = [];
+            const uploadDir = getUploadDir();
 
             for await (const part of parts) {
                 const buffer = await part.toBuffer();
                 const fileName = generateFileName(part.filename);
-                const filePath = path.join(UPLOAD_DIR, 'videos', fileName);
+                const filePath = path.join(uploadDir, 'videos', fileName);
 
                 fs.writeFileSync(filePath, buffer);
-                uploadedPaths.push(`/uploadFiles/honors/videos/${fileName}`);
+                uploadedPaths.push(`/honorsUploads/videos/${fileName}`);
             }
 
             return { success: true, data: { paths: uploadedPaths } };
@@ -319,13 +326,14 @@ export default async function honorsRoutes(fastify: FastifyInstance) {
 
             const buffer = await data.toBuffer();
             const fileName = generateFileName(data.filename || 'recording.webm');
-            const filePath = path.join(UPLOAD_DIR, 'recordings', fileName);
+            const uploadDir = getUploadDir();
+            const filePath = path.join(uploadDir, 'recordings', fileName);
 
             fs.writeFileSync(filePath, buffer);
 
             return {
                 success: true,
-                data: { path: `/uploadFiles/honors/recordings/${fileName}` }
+                data: { path: `/honorsUploads/recordings/${fileName}` }
             };
         } catch (error) {
             return reply.status(500).send({ success: false, error: String(error) });

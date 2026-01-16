@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { compressImageBuffer, isImageFile } from '../utils/imageCompress.js';
 import * as KnowledgeManager from '../utils/knowledgeFileManager.js';
 import * as KnowledgeIndexManager from '../utils/knowledgeIndexManager.js';
+import { getKnowledgeDataPath } from '../utils/deployConfigManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -413,7 +414,7 @@ export default async function knowledgeRoutes(fastify: FastifyInstance) {
 
             if (!targetPath) {
                 // 如果没有指定目标，保存到临时目录
-                targetPath = path.join(__dirname, '../../../knowledgeFiles/.temp');
+                targetPath = path.join(getKnowledgeDataPath(), '.temp');
                 if (!fs.existsSync(targetPath)) {
                     fs.mkdirSync(targetPath, { recursive: true });
                 }
