@@ -28,6 +28,8 @@ export interface DataPathsConfig {
     honors: string;
     // 待做任务数据目录
     tasks: string;
+    // 游戏空间数据目录
+    games: string;
 }
 
 export interface ServerConfig {
@@ -116,7 +118,8 @@ function getDefaultDataPaths(): DataPathsConfig {
         familyMembers: '../homeWorkData/familyMembers',
         diary: '../homeWorkData/diary',
         honors: '../homeWorkData/honors',
-        tasks: '../homeWorkData/tasks'
+        tasks: '../homeWorkData/tasks',
+        games: '../homeWorkData/games'
     };
 }
 
@@ -179,6 +182,14 @@ export function getTasksDataPath(): string {
 }
 
 /**
+ * 获取游戏空间数据根目录
+ */
+export function getGamesDataPath(): string {
+    const config = loadDeployConfig();
+    return resolvePath(config.dataPaths?.games || '../homeWorkData/games');
+}
+
+/**
  * 获取项目根目录
  */
 export function getProjectRoot(): string {
@@ -196,6 +207,7 @@ export function getAllDataPaths(): Record<string, string> {
         diary: getDiaryDataPath(),
         honors: getHonorsDataPath(),
         tasks: getTasksDataPath(),
+        games: getGamesDataPath(),
         projectRoot: PROJECT_ROOT
     };
 }
@@ -210,7 +222,8 @@ export function ensureDataDirectories(): void {
         getFamilyMembersDataPath(),
         getDiaryDataPath(),
         getHonorsDataPath(),
-        getTasksDataPath()
+        getTasksDataPath(),
+        getGamesDataPath()
     ];
 
     for (const p of paths) {

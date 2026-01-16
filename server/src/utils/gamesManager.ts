@@ -1,19 +1,61 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getGamesDataPath } from './deployConfigManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 获取游戏数据目录路径
+// 获取游戏数据目录路径（使用配置文件中的路径）
 export function getGamesDBPath() {
-    return path.join(__dirname, '../../../fileDB/games');
+    return getGamesDataPath();
 }
 
-// 游戏数据文件路径
-const GAMES_FILE = path.join(getGamesDBPath(), 'games.json');
-const STATS_FILE = path.join(getGamesDBPath(), 'gameStats.json');
-const SAVES_FILE = path.join(getGamesDBPath(), 'gameSaves.json');
+// 获取游戏数据文件路径
+function getGamesFilePath() {
+    return path.join(getGamesDBPath(), 'games.json');
+}
+
+function getStatsFilePath() {
+    return path.join(getGamesDBPath(), 'gameStats.json');
+}
+
+function getSavesFilePath() {
+    return path.join(getGamesDBPath(), 'gameSaves.json');
+}
+
+function getStyles2048FilePath() {
+    return path.join(getGamesDBPath(), '2048_styles.json');
+}
+
+function getDanceTemplatesFilePath() {
+    return path.join(getGamesDBPath(), 'dance_templates.json');
+}
+
+// 默认样式组
+const DEFAULT_STYLE_GROUP = {
+    id: 'default',
+    name: '经典样式',
+    description: '原版2048经典配色',
+    tileStyles: {
+        2: { backgroundColor: '#eee4da', textColor: '#776e65' },
+        4: { backgroundColor: '#ede0c8', textColor: '#776e65' },
+        8: { backgroundColor: '#f2b179', textColor: '#f9f6f2' },
+        16: { backgroundColor: '#f59563', textColor: '#f9f6f2' },
+        32: { backgroundColor: '#f67c5f', textColor: '#f9f6f2' },
+        64: { backgroundColor: '#f65e3b', textColor: '#f9f6f2' },
+        128: { backgroundColor: '#edcf72', textColor: '#f9f6f2' },
+        256: { backgroundColor: '#edcc61', textColor: '#f9f6f2' },
+        512: { backgroundColor: '#edc850', textColor: '#f9f6f2' },
+        1024: { backgroundColor: '#edc53f', textColor: '#f9f6f2' },
+        2048: { backgroundColor: '#edc22e', textColor: '#f9f6f2' },
+        4096: { backgroundColor: '#3c3a32', textColor: '#f9f6f2' },
+        8192: { backgroundColor: '#3c3a32', textColor: '#f9f6f2' },
+    },
+    boardBackground: '#bbada0',
+    emptyTileColor: '#cdc1b4',
+    createTime: new Date().toISOString()
+};
 
 // 初始化游戏数据库
 export function initGamesDB() {
@@ -22,13 +64,28 @@ export function initGamesDB() {
         fs.mkdirSync(dbPath, { recursive: true });
     }
 
-    // 初始化游戏列表
-    if (!fs.existsSync(GAMES_FILE)) {
+    const gamesFile = getGamesFilePath();
+    const statsFile = getStatsFilePath();
+    const savesFile = getSavesFilePath();
+
+    // 初始化游戏列表 - 如果文件不存在或为空数组则初始化
+    let needInitGames = !fs.existsSync(gamesFile);
+    if (!needInitGames) {
+        try {
+            const data = fs.readFileSync(gamesFile, 'utf-8');
+            const games = JSON.parse(data);
+            needInitGames = !Array.isArray(games) || games.length === 0;
+        } catch {
+            needInitGames = true;
+        }
+    }
+
+    if (needInitGames) {
         const defaultGames = [
             {
                 id: 'game2048',
                 name: '2048',
-                cover: '/uploadFiles/gameFiles/2048/cover.png',
+                cover: '/gameFiles/2048/cover.png',
                 description: '经典数字合成游戏',
                 enabled: true,
                 createTime: new Date().toISOString()
@@ -36,7 +93,7 @@ export function initGamesDB() {
             {
                 id: 'followDance',
                 name: '跟随跳舞',
-                cover: '/uploadFiles/gameFiles/followDance/cover.png',
+                cover: '/gameFiles/followDance/cover.png',
                 description: '跟着视频一起跳舞',
                 enabled: true,
                 createTime: new Date().toISOString()
@@ -44,35 +101,47 @@ export function initGamesDB() {
             {
                 id: 'mathBattle',
                 name: '数字大战',
-                cover: '/uploadFiles/gameFiles/mathBattle/cover.png',
+                cover: '/gameFiles/mathBattle/cover.png',
                 description: '数学运算闯关游戏',
                 enabled: true,
                 createTime: new Date().toISOString()
             }
         ];
-        fs.writeFileSync(GAMES_FILE, JSON.stringify(defaultGames, null, 2));
+        fs.writeFileSync(gamesFile, JSON.stringify(defaultGames, null, 2));
+        console.log('🎮 游戏列表已初始化');
     }
 
     // 初始化统计数据
-    if (!fs.existsSync(STATS_FILE)) {
-        fs.writeFileSync(STATS_FILE, JSON.stringify({}, null, 2));
+    if (!fs.existsSync(statsFile)) {
+        fs.writeFileSync(statsFile, JSON.stringify({}, null, 2));
     }
 
     // 初始化存档数据
-    if (!fs.existsSync(SAVES_FILE)) {
-        fs.writeFileSync(SAVES_FILE, JSON.stringify({}, null, 2));
+    if (!fs.existsSync(savesFile)) {
+        fs.writeFileSync(savesFile, JSON.stringify({}, null, 2));
+    }
+
+    // 创建游戏资源子目录
+    const gameSubDirs = ['2048', 'followDance', 'mathBattle'];
+    for (const subDir of gameSubDirs) {
+        const subDirPath = path.join(dbPath, subDir);
+        if (!fs.existsSync(subDirPath)) {
+            fs.mkdirSync(subDirPath, { recursive: true });
+        }
     }
 }
 
 // 读取游戏列表
 export function getGamesList() {
-    const data = fs.readFileSync(GAMES_FILE, 'utf-8');
+    const gamesFile = getGamesFilePath();
+    const data = fs.readFileSync(gamesFile, 'utf-8');
     return JSON.parse(data);
 }
 
 // 读取所有游戏统计
 export function getAllGameStats() {
-    const data = fs.readFileSync(STATS_FILE, 'utf-8');
+    const statsFile = getStatsFilePath();
+    const data = fs.readFileSync(statsFile, 'utf-8');
     return JSON.parse(data);
 }
 
@@ -83,7 +152,7 @@ export function getGameStats(gameId: string) {
 }
 
 // 初始化游戏统计数据
-function initGameStats(gameId: string) {
+function initGameStats() {
     return {
         gameCount: 0,
         totalPlayTime: 0,
@@ -102,7 +171,7 @@ export function updateGameStats(gameId: string, score: number, playTime: number)
 
     // 如果游戏统计不存在，初始化
     if (!allStats[gameId]) {
-        allStats[gameId] = initGameStats(gameId);
+        allStats[gameId] = initGameStats();
     }
 
     const stats = allStats[gameId];
@@ -137,21 +206,24 @@ export function updateGameStats(gameId: string, score: number, playTime: number)
     stats.lastPlayDate = new Date().toISOString();
 
     // 保存更新后的统计数据
-    fs.writeFileSync(STATS_FILE, JSON.stringify(allStats, null, 2));
+    const statsFile = getStatsFilePath();
+    fs.writeFileSync(statsFile, JSON.stringify(allStats, null, 2));
 
     return stats;
 }
 
 // 获取游戏存档
 export function getGameSave(gameId: string) {
-    const data = fs.readFileSync(SAVES_FILE, 'utf-8');
+    const savesFile = getSavesFilePath();
+    const data = fs.readFileSync(savesFile, 'utf-8');
     const saves = JSON.parse(data);
     return saves[gameId] || null;
 }
 
 // 保存游戏存档
 export function saveGame(gameId: string, gameData: any) {
-    const data = fs.readFileSync(SAVES_FILE, 'utf-8');
+    const savesFile = getSavesFilePath();
+    const data = fs.readFileSync(savesFile, 'utf-8');
     const saves = JSON.parse(data);
 
     saves[gameId] = {
@@ -159,69 +231,47 @@ export function saveGame(gameId: string, gameData: any) {
         gameData
     };
 
-    fs.writeFileSync(SAVES_FILE, JSON.stringify(saves, null, 2));
+    fs.writeFileSync(savesFile, JSON.stringify(saves, null, 2));
     return saves[gameId];
 }
 
 // 删除游戏存档
 export function deleteGameSave(gameId: string) {
-    const data = fs.readFileSync(SAVES_FILE, 'utf-8');
+    const savesFile = getSavesFilePath();
+    const data = fs.readFileSync(savesFile, 'utf-8');
     const saves = JSON.parse(data);
 
     if (saves[gameId]) {
         delete saves[gameId];
-        fs.writeFileSync(SAVES_FILE, JSON.stringify(saves, null, 2));
+        fs.writeFileSync(savesFile, JSON.stringify(saves, null, 2));
         return true;
     }
     return false;
 }
 
 // ============ 2048 样式组管理 ============
-const STYLES_2048_FILE = path.join(getGamesDBPath(), '2048_styles.json');
-
-// 默认样式组
-const DEFAULT_STYLE_GROUP = {
-    id: 'default',
-    name: '经典样式',
-    description: '原版2048经典配色',
-    tileStyles: {
-        2: { backgroundColor: '#eee4da', textColor: '#776e65' },
-        4: { backgroundColor: '#ede0c8', textColor: '#776e65' },
-        8: { backgroundColor: '#f2b179', textColor: '#f9f6f2' },
-        16: { backgroundColor: '#f59563', textColor: '#f9f6f2' },
-        32: { backgroundColor: '#f67c5f', textColor: '#f9f6f2' },
-        64: { backgroundColor: '#f65e3b', textColor: '#f9f6f2' },
-        128: { backgroundColor: '#edcf72', textColor: '#f9f6f2' },
-        256: { backgroundColor: '#edcc61', textColor: '#f9f6f2' },
-        512: { backgroundColor: '#edc850', textColor: '#f9f6f2' },
-        1024: { backgroundColor: '#edc53f', textColor: '#f9f6f2' },
-        2048: { backgroundColor: '#edc22e', textColor: '#f9f6f2' },
-        4096: { backgroundColor: '#3c3a32', textColor: '#f9f6f2' },
-        8192: { backgroundColor: '#3c3a32', textColor: '#f9f6f2' },
-    },
-    boardBackground: '#bbada0',
-    emptyTileColor: '#cdc1b4',
-    createTime: new Date().toISOString()
-};
 
 // 初始化2048样式数据
 export function init2048Styles() {
-    if (!fs.existsSync(STYLES_2048_FILE)) {
-        fs.writeFileSync(STYLES_2048_FILE, JSON.stringify([DEFAULT_STYLE_GROUP], null, 2));
+    const stylesFile = getStyles2048FilePath();
+    if (!fs.existsSync(stylesFile)) {
+        fs.writeFileSync(stylesFile, JSON.stringify([DEFAULT_STYLE_GROUP], null, 2));
     }
 }
 
 // 获取所有样式组
 export function get2048StyleGroups() {
-    if (!fs.existsSync(STYLES_2048_FILE)) {
+    const stylesFile = getStyles2048FilePath();
+    if (!fs.existsSync(stylesFile)) {
         init2048Styles();
     }
-    const data = fs.readFileSync(STYLES_2048_FILE, 'utf-8');
+    const data = fs.readFileSync(stylesFile, 'utf-8');
     return JSON.parse(data);
 }
 
 // 保存样式组
 export function save2048StyleGroup(styleGroup: any) {
+    const stylesFile = getStyles2048FilePath();
     const styles = get2048StyleGroups();
     const existingIndex = styles.findIndex((s: any) => s.id === styleGroup.id);
 
@@ -231,7 +281,7 @@ export function save2048StyleGroup(styleGroup: any) {
         styles.push(styleGroup);
     }
 
-    fs.writeFileSync(STYLES_2048_FILE, JSON.stringify(styles, null, 2));
+    fs.writeFileSync(stylesFile, JSON.stringify(styles, null, 2));
     return styleGroup;
 }
 
@@ -239,49 +289,54 @@ export function save2048StyleGroup(styleGroup: any) {
 export function delete2048StyleGroup(styleGroupId: string) {
     if (styleGroupId === 'default') return false; // 不能删除默认样式
 
+    const stylesFile = getStyles2048FilePath();
     const styles = get2048StyleGroups();
     const newStyles = styles.filter((s: any) => s.id !== styleGroupId);
 
     if (newStyles.length === styles.length) return false;
 
-    fs.writeFileSync(STYLES_2048_FILE, JSON.stringify(newStyles, null, 2));
+    fs.writeFileSync(stylesFile, JSON.stringify(newStyles, null, 2));
     return true;
 }
+
 // ============ 跟随跳舞模板管理 ============
-const DANCE_TEMPLATES_FILE = path.join(getGamesDBPath(), 'dance_templates.json');
 
 // 初始化跳舞模板数据
 export function initDanceTemplates() {
-    if (!fs.existsSync(DANCE_TEMPLATES_FILE)) {
-        fs.writeFileSync(DANCE_TEMPLATES_FILE, JSON.stringify([], null, 2));
+    const templatesFile = getDanceTemplatesFilePath();
+    if (!fs.existsSync(templatesFile)) {
+        fs.writeFileSync(templatesFile, JSON.stringify([], null, 2));
     }
 }
 
 // 获取所有跳舞模板
 export function getDanceTemplates() {
-    if (!fs.existsSync(DANCE_TEMPLATES_FILE)) {
+    const templatesFile = getDanceTemplatesFilePath();
+    if (!fs.existsSync(templatesFile)) {
         initDanceTemplates();
     }
-    const data = fs.readFileSync(DANCE_TEMPLATES_FILE, 'utf-8');
+    const data = fs.readFileSync(templatesFile, 'utf-8');
     return JSON.parse(data);
 }
 
 // 添加跳舞模板
 export function addDanceTemplate(template: any) {
+    const templatesFile = getDanceTemplatesFilePath();
     const templates = getDanceTemplates();
     templates.push(template);
-    fs.writeFileSync(DANCE_TEMPLATES_FILE, JSON.stringify(templates, null, 2));
+    fs.writeFileSync(templatesFile, JSON.stringify(templates, null, 2));
     return template;
 }
 
 // 删除跳舞模板
 export function deleteDanceTemplate(templateId: string) {
+    const templatesFile = getDanceTemplatesFilePath();
     const templates = getDanceTemplates();
     const template = templates.find((t: any) => t.id === templateId);
     const newTemplates = templates.filter((t: any) => t.id !== templateId);
 
     if (newTemplates.length === templates.length) return null;
 
-    fs.writeFileSync(DANCE_TEMPLATES_FILE, JSON.stringify(newTemplates, null, 2));
+    fs.writeFileSync(templatesFile, JSON.stringify(newTemplates, null, 2));
     return template;
 }
