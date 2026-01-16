@@ -17,6 +17,10 @@ import HonorDetailPage from './pages/HonorDetailPage'
 import HonorPlayPage from './pages/HonorPlayPage'
 import FavoritesPage from './pages/FavoritesPage'
 import GrowthTrackPage from './pages/GrowthTrackPage'
+// 游戏页面
+import Game2048Page from './games/game2048/index'
+import FollowDancePage from './games/followDance/index'
+import MathBattlePage from './games/mathBattle/index'
 
 function App() {
     return (
@@ -41,6 +45,10 @@ function App() {
             </Route>
             {/* 荣誉播放页面（全屏，不使用Layout） */}
             <Route path="honors/:hallId/play" element={<HonorPlayPage />} />
+            {/* 游戏页面（全屏，不使用Layout） */}
+            <Route path="game-space/game2048" element={<Game2048Page />} />
+            <Route path="game-space/followDance" element={<FollowDancePage />} />
+            <Route path="game-space/mathBattle" element={<MathBattlePage />} />
         </Routes>
     )
 }

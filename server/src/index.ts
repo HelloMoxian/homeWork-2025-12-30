@@ -12,11 +12,13 @@ import theaterRoutes from './routes/theater.js';
 import honorsRoutes from './routes/honors.js';
 import tasksRoutes from './routes/tasks.js';
 import periodicTasksRoutes from './routes/periodicTasks.js';
+import gamesRoutes from './routes/games.js';
 import { initializeIndex } from './utils/knowledgeIndexManager.js';
 import { initFileDB } from './utils/familyMembersFileManager.js';
 import { initHonorsDB } from './utils/honorsManager.js';
 import { initTasksDB } from './utils/taskManager.js';
 import { initPeriodicTasksDB, checkAndGenerateTodayTasks } from './utils/periodicTaskManager.js';
+import { initGamesDB } from './utils/gamesManager.js';
 import {
     loadDeployConfig,
     getKnowledgeDataPath,
@@ -103,6 +105,17 @@ if (fs.existsSync(videoCenterPath)) {
     });
 }
 
+// 游戏上传文件静态访问
+const gameUploadPath = path.join(__dirname, '../../uploadFiles/gameFiles');
+if (!fs.existsSync(gameUploadPath)) {
+    fs.mkdirSync(gameUploadPath, { recursive: true });
+}
+await fastify.register(fastifyStatic, {
+    root: gameUploadPath,
+    prefix: '/uploadFiles/gameFiles/',
+    decorateReply: false
+});
+
 // 静态文件服务 - 生产环境下服务前端构建产物
 const clientDistPath = path.join(__dirname, '../../client/dist');
 await fastify.register(fastifyStatic, {
@@ -117,6 +130,7 @@ await fastify.register(diaryRoutes);
 await fastify.register(theaterRoutes);
 await fastify.register(honorsRoutes);
 await fastify.register(tasksRoutes);
+await fastify.register(gamesRoutes);
 await fastify.register(periodicTasksRoutes);
 
 // API 路由
@@ -148,6 +162,9 @@ const start = async () => {
 
         // 初始化周期任务数据库
         initPeriodicTasksDB();
+
+        // 初始化游戏数据库
+        initGamesDB();
 
         // 生成今日周期任务
         const generatedCount = checkAndGenerateTodayTasks();
