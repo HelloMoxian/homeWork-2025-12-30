@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camera Test (getUserMedia)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: #0b0b0b;
+        color: #eaeaea;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 12px 0;
+      }
+      button {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #2b2b2b;
+        background: #151515;
+        color: #eaeaea;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .status {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #2b2b2b;
+        background: #101010;
+        flex: 1;
+        min-width: 240px;
+      }
+      .panel {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #2b2b2b;
+        background: #000;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+      }
+      .hint {
+        font-size: 12px;
+        color: #bdbdbd;
+        line-height: 1.5;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Camera Test (getUserMedia)</h1>
+      <div class="row">
+        <button id="btnStart">开始摄像头</button>
+        <button id="btnStop" disabled>停止摄像头</button>
+        <div id="status" class="status">状态：未开始</div>
+      </div>
+
+      <div class="panel">
+        <video id="video" autoplay playsinline muted></video>
+      </div>
+
+      <p class="hint">
+        说明：此页面仅用于验证 <code>navigator.mediaDevices.getUserMedia</code> + <code>&lt;video&gt;.srcObject</code> 是否能正常显示画面。请用 <code>http://localhost</code> 打开（或 https），否则浏览器会拦截摄像头。
+      </p>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const btnStart = document.getElementById('btnStart');
+      const btnStop = document.getElementById('btnStop');
+      const video = document.getElementById('video');
+
+      /** @type {MediaStream | null} */
+      let stream = null;
+
+      function setStatus(text) {
+        statusEl.textContent = '状态：' + text;
+      }
+
+      async function startCamera() {
+        try {
+          setStatus('请求权限中…');
+
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setStatus('不支持 getUserMedia');
+            return;
+          }
+
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+
+          video.srcObject = stream;
+
+          // 某些浏览器需要显式调用 play()
+          await video.play().catch(() => {});
+
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+          setStatus('运行中（如果仍黑屏：检查权限/是否被占用/是否为 localhost 或 https）');
+        } catch (e) {
+          console.error(e);
+          btnStart.disabled = false;
+          btnStop.disabled = true;
+          setStatus('失败：' + (e && e.message ? e.message : String(e)));
+        }
+      }
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+        }
+        video.srcObject = null;
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        setStatus('已停止');
+      }
+
+      btnStart.addEventListener('click', startCamera);
+      btnStop.addEventListener('click', stopCamera);
+
+      // 自动尝试启动（若浏览器要求手势，点按钮也能启动）
+      startCamera();
+    </script>
+  </body>
+</html>

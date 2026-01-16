@@ -252,6 +252,7 @@ function DanceStage({
 }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const cameraRef = useRef<HTMLVideoElement>(null);
+    const cameraStreamRef = useRef<MediaStream | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [cameraEnabled, setCameraEnabled] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -261,25 +262,42 @@ function DanceStage({
     // 开启摄像头
     const enableCamera = async () => {
         try {
+            setCameraError(null);
+
+            if (cameraStreamRef.current) {
+                setCameraEnabled(true);
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: 640, height: 480 }
+                video: { facingMode: 'user' },
+                audio: false
             });
+
+            cameraStreamRef.current = stream;
+            setCameraEnabled(true);
+
             if (cameraRef.current) {
                 cameraRef.current.srcObject = stream;
-                setCameraEnabled(true);
-                setCameraError(null);
+                await cameraRef.current.play().catch(() => {
+                    // 某些浏览器需要用户手势触发播放；此处忽略错误并保持 stream 有效
+                });
             }
         } catch (error) {
             console.error('无法访问摄像头:', error);
             setCameraError('无法访问摄像头，请检查权限设置');
+            setCameraEnabled(false);
         }
     };
 
     // 关闭摄像头
     const disableCamera = () => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => track.stop());
+            cameraStreamRef.current = null;
+        }
+
         if (cameraRef.current?.srcObject) {
-            const stream = cameraRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
             cameraRef.current.srcObject = null;
         }
         setCameraEnabled(false);
@@ -294,6 +312,21 @@ function DanceStage({
             disableCamera();
         };
     }, []);
+
+    // 当 video 元素或 stream 就绪时，确保绑定并播放
+    useEffect(() => {
+        const videoEl = cameraRef.current;
+        const stream = cameraStreamRef.current;
+        if (!videoEl || !stream || !cameraEnabled) return;
+
+        if (videoEl.srcObject !== stream) {
+            videoEl.srcObject = stream;
+        }
+
+        videoEl.play().catch(() => {
+            // 需要用户手势时忽略
+        });
+    }, [cameraEnabled]);
 
     // 播放控制
     const togglePlay = () => {
@@ -383,20 +416,22 @@ function DanceStage({
             <div className="h-full pt-16 pb-24 px-4 flex gap-4">
                 {/* 摄像头画面 */}
                 <div className="flex-1 rounded-2xl overflow-hidden bg-black/30 backdrop-blur relative">
-                    {cameraEnabled ? (
-                        <video
-                            ref={cameraRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-full object-cover transform scale-x-[-1]"
-                        />
-                    ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-white/60">
-                            <CameraOff size={64} className="mb-4" />
-                            <p>{cameraError || '点击右上角开启摄像头'}</p>
+                    <video
+                        ref={cameraRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover transform scale-x-[-1]"
+                    />
+
+                    {cameraError && (
+                        <div className="absolute inset-0 flex items-center justify-center text-white/70 bg-black/20">
+                            <div className="px-4 py-2 rounded-lg bg-black/50 backdrop-blur text-sm">
+                                {cameraError}
+                            </div>
                         </div>
                     )}
+
                     <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-white text-sm">
                         我的舞姿
                     </div>
