@@ -7,16 +7,6 @@ client/node_modules/
 server/dist/
 client/dist/
 
-# 数据库文件
-data/
-
-# 日志文件
-logs/*.log
-
-# 临时文件
-tempFiles/*
-!tempFiles/.gitkeep
-
 # IDE
 .idea/
 .vscode/
@@ -34,10 +24,3 @@ Thumbs.db
 
 # 本地部署配置（不跟踪）
 configs/localDeployConfig.json
-
-logs/server.pid
-logs/server.pid
-
-# 视频模块忽略
-videoCenter/have_a_break/*.*
-videoCenter/resources/*
