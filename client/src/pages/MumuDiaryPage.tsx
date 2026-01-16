@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
     PenTool, Calendar, Cloud, Smile, Utensils, FileText,
     Image, Video, Mic, Plus, Trash2, ChevronLeft, ChevronRight,
-    Camera, Upload, X, Save, Play, Pause, Thermometer
+    ChevronsLeft, ChevronsRight, Camera, Upload, X, Save, Play, Pause, Thermometer
 } from 'lucide-react'
 import PageContainer from '@/components/PageContainer'
 
@@ -213,9 +213,42 @@ export default function MumuDiaryPage() {
         setCurrentDate(newDate)
     }
 
+    // 切换月份
+    const changeMonth = (months: number) => {
+        const newDate = new Date(currentDate)
+        newDate.setMonth(newDate.getMonth() + months)
+        newDate.setDate(1) // 跳转到当月1号
+        setCurrentDate(newDate)
+    }
+
     const goToToday = () => {
         setCurrentDate(new Date())
     }
+
+    // 键盘导航支持
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        // 只在主页面区域处理，不在输入框等内触发
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            return
+        }
+
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            changeDate(-1)
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault()
+            changeDate(1)
+        }
+    }, [currentDate])
+
+    // 注册键盘事件
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown)
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [handleKeyDown])
 
     // 更新天气（多选）
     const toggleWeather = (weatherValue: string) => {
@@ -655,16 +688,26 @@ export default function MumuDiaryPage() {
             iconColor="text-purple-600"
             iconBgColor="bg-gradient-to-br from-purple-400 to-violet-500"
         >
-            <div className="p-4 md:p-6 max-w-6xl mx-auto">
+            <div className="p-4 md:p-6 max-w-6xl mx-auto" tabIndex={0}>
                 {/* 日期导航 */}
                 <div className="bg-white rounded-xl shadow-md p-4 mb-6">
                     <div className="flex items-center justify-between">
-                        <button
-                            onClick={() => changeDate(-1)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition"
-                        >
-                            <ChevronLeft size={24} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => changeMonth(-1)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                title="上个月"
+                            >
+                                <ChevronsLeft size={24} />
+                            </button>
+                            <button
+                                onClick={() => changeDate(-1)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                title="上一天"
+                            >
+                                <ChevronLeft size={24} />
+                            </button>
+                        </div>
                         <div className="text-center">
                             <h2 className="text-xl font-bold text-gray-800">
                                 {formatDisplayDate(currentDate)}
@@ -678,12 +721,22 @@ export default function MumuDiaryPage() {
                                 </button>
                             )}
                         </div>
-                        <button
-                            onClick={() => changeDate(1)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition"
-                        >
-                            <ChevronRight size={24} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => changeDate(1)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                title="下一天"
+                            >
+                                <ChevronRight size={24} />
+                            </button>
+                            <button
+                                onClick={() => changeMonth(1)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                                title="下个月"
+                            >
+                                <ChevronsRight size={24} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* 月份日记指示器 */}

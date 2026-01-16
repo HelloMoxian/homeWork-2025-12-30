@@ -10,14 +10,19 @@ import knowledgeRoutes from './routes/knowledge.js';
 import diaryRoutes from './routes/diary.js';
 import theaterRoutes from './routes/theater.js';
 import honorsRoutes from './routes/honors.js';
+import tasksRoutes from './routes/tasks.js';
+import periodicTasksRoutes from './routes/periodicTasks.js';
 import { initializeIndex } from './utils/knowledgeIndexManager.js';
 import { initFileDB } from './utils/familyMembersFileManager.js';
 import { initHonorsDB } from './utils/honorsManager.js';
+import { initTasksDB } from './utils/taskManager.js';
+import { initPeriodicTasksDB, checkAndGenerateTodayTasks } from './utils/periodicTaskManager.js';
 import {
     loadDeployConfig,
     getKnowledgeDataPath,
     getTheaterDataPath,
     getDiaryDataPath,
+    getTasksDataPath,
     ensureDataDirectories,
     getAllDataPaths
 } from './utils/deployConfigManager.js';
@@ -56,6 +61,17 @@ if (!fs.existsSync(diaryUploadPath)) {
 await fastify.register(fastifyStatic, {
     root: diaryUploadPath,
     prefix: '/diaryUploads/',
+    decorateReply: false
+});
+
+// 任务上传文件静态访问（从配置获取路径）
+const tasksUploadPath = path.join(getTasksDataPath(), 'uploads');
+if (!fs.existsSync(tasksUploadPath)) {
+    fs.mkdirSync(tasksUploadPath, { recursive: true });
+}
+await fastify.register(fastifyStatic, {
+    root: tasksUploadPath,
+    prefix: '/taskUploads/',
     decorateReply: false
 });
 
@@ -100,6 +116,8 @@ await fastify.register(knowledgeRoutes);
 await fastify.register(diaryRoutes);
 await fastify.register(theaterRoutes);
 await fastify.register(honorsRoutes);
+await fastify.register(tasksRoutes);
+await fastify.register(periodicTasksRoutes);
 
 // API 路由
 fastify.get('/api/health', async () => {
@@ -124,6 +142,18 @@ const start = async () => {
 
         // 初始化荣誉室数据库
         initHonorsDB();
+
+        // 初始化任务数据库
+        initTasksDB();
+
+        // 初始化周期任务数据库
+        initPeriodicTasksDB();
+
+        // 生成今日周期任务
+        const generatedCount = checkAndGenerateTodayTasks();
+        if (generatedCount > 0) {
+            console.log(`📋 已自动生成 ${generatedCount} 个周期任务`);
+        }
 
         await fastify.listen({ port: 3000, host: '0.0.0.0' });
         console.log('🚀 服务器已启动: http://localhost:3000');

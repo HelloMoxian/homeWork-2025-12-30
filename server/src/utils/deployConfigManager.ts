@@ -26,6 +26,8 @@ export interface DataPathsConfig {
     diary: string;
     // 荣誉室数据目录
     honors: string;
+    // 待做任务数据目录
+    tasks: string;
 }
 
 export interface ServerConfig {
@@ -113,7 +115,8 @@ function getDefaultDataPaths(): DataPathsConfig {
         knowledge: '../homeWorkData/knowledge',
         familyMembers: '../homeWorkData/familyMembers',
         diary: '../homeWorkData/diary',
-        honors: '../homeWorkData/honors'
+        honors: '../homeWorkData/honors',
+        tasks: '../homeWorkData/tasks'
     };
 }
 
@@ -168,6 +171,14 @@ export function getHonorsDataPath(): string {
 }
 
 /**
+ * 获取待做任务数据根目录
+ */
+export function getTasksDataPath(): string {
+    const config = loadDeployConfig();
+    return resolvePath(config.dataPaths?.tasks || '../homeWorkData/tasks');
+}
+
+/**
  * 获取项目根目录
  */
 export function getProjectRoot(): string {
@@ -184,6 +195,7 @@ export function getAllDataPaths(): Record<string, string> {
         familyMembers: getFamilyMembersDataPath(),
         diary: getDiaryDataPath(),
         honors: getHonorsDataPath(),
+        tasks: getTasksDataPath(),
         projectRoot: PROJECT_ROOT
     };
 }
@@ -197,7 +209,8 @@ export function ensureDataDirectories(): void {
         getKnowledgeDataPath(),
         getFamilyMembersDataPath(),
         getDiaryDataPath(),
-        getHonorsDataPath()
+        getHonorsDataPath(),
+        getTasksDataPath()
     ];
 
     for (const p of paths) {
