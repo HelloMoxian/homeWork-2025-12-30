@@ -11,13 +11,9 @@ games/
   │   ├── Settings.tsx      # 设置界面
   │   ├── styles/           # 样式资源
   │   └── assets/           # 图片资源
-  ├── followDance/          # 跟随跳舞
-  │   ├── index.tsx
-  │   ├── FollowDance.ts
-  │   └── ...
-  └── mathBattle/           # 数字大战
+  └── followDance/          # 跟随跳舞
       ├── index.tsx
-      ├── MathBattle.ts
+      ├── FollowDance.ts
       └── ...
 ```
 

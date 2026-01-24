@@ -97,14 +97,6 @@ export function initGamesDB() {
                 description: '跟着视频一起跳舞',
                 enabled: true,
                 createTime: new Date().toISOString()
-            },
-            {
-                id: 'mathBattle',
-                name: '数字大战',
-                cover: '/gameFiles/mathBattle/cover.png',
-                description: '数学运算闯关游戏',
-                enabled: true,
-                createTime: new Date().toISOString()
             }
         ];
         fs.writeFileSync(gamesFile, JSON.stringify(defaultGames, null, 2));
@@ -122,7 +114,7 @@ export function initGamesDB() {
     }
 
     // 创建游戏资源子目录
-    const gameSubDirs = ['2048', 'followDance', 'mathBattle'];
+    const gameSubDirs = ['2048', 'followDance'];
     for (const subDir of gameSubDirs) {
         const subDirPath = path.join(dbPath, subDir);
         if (!fs.existsSync(subDirPath)) {
