@@ -17,7 +17,7 @@ function getBreakPath(): string {
 }
 
 // 支持的视频格式
-const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.flv', '.wmv'];
+const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.flv', '.wmv', '.ts'];
 
 // 检查是否是视频文件
 function isVideoFile(filename: string): boolean {

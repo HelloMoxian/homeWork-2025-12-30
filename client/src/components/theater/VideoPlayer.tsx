@@ -1,6 +1,33 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { X, Play, Pause, Volume2, VolumeX, Maximize, SkipForward, SkipBack } from 'lucide-react'
 
+// 根据视频文件扩展名获取 MIME 类型
+function getVideoMimeType(videoUrl: string): string {
+    const ext = videoUrl.split('.').pop()?.toLowerCase()
+    switch (ext) {
+        case 'mp4':
+            return 'video/mp4'
+        case 'mov':
+            return 'video/quicktime'
+        case 'ts':
+            return 'video/mp2t'
+        case 'mkv':
+            return 'video/x-matroska'
+        case 'avi':
+            return 'video/x-msvideo'
+        case 'webm':
+            return 'video/webm'
+        case 'm4v':
+            return 'video/x-m4v'
+        case 'flv':
+            return 'video/x-flv'
+        case 'wmv':
+            return 'video/x-ms-wmv'
+        default:
+            return 'video/mp4'
+    }
+}
+
 interface VideoPlayerProps {
     videoUrl: string
     title: string
@@ -263,7 +290,11 @@ export default function VideoPlayer({
                 onPause={handlePause}
                 onEnded={handleEnded}
                 onClick={togglePlay}
-            />
+            >
+                {/* 添加 source 标签以支持多种视频格式 */}
+                <source src={videoUrl} type={getVideoMimeType(videoUrl)} />
+                您的浏览器不支持视频播放
+            </video>
 
             {/* 控制条 */}
             <div
