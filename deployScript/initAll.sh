@@ -204,7 +204,6 @@ main() {
     
     # 执行各个初始化步骤
     check_system_dependencies
-    create_directories
     init_node_dependencies
     build_projects
     
